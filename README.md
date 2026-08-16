@@ -1,72 +1,188 @@
-# 🏛️ Government AI Portal - Citizen & Government Intelligence Platform
+# 🏛️ Government AI Portal
 
-An AI-powered public grievance management, analytics, and data-driven governance platform designed for citizen complaint resolution, priority detection, emergency routing, and executive analytics.
+### AI-Powered Citizen & Government Intelligence Platform
 
----
-
-## 🌟 Key Features
-
-- **🤖 AI Multi-Module Prediction Engine**:
-  - **Sentiment Analysis**: Predicts complaint sentiment (Negative/Neutral/Positive) with confidence scores.
-  - **Feedback Categorization**: Classifies feedback type into structured grievance categories.
-  - **Complaint Reason Detection**: Identifies underlying issues across civic domains.
-  - **Automated Department Routing**: Routes complaints to **BBMP / Municipal Works**, **BESCOM / Power & Electricity**, **BWSSB / Sanitation & Water**, **Health & Family Welfare**, **Department of Education**, etc.
-  - **Department Priority Classifier**: Assigns resolution priority (Urgent / High / Medium / Low).
-  - **Emergency Override**: Detects urgent life-safety emergencies (fires, explosions, building collapses) for immediate response.
-  - **Harmful Content Guard**: Filters abusive content while preventing false positives.
-
-- **🏛️ Government Official Portal**:
-  - **Action Queue**: Actionable complaint review with status updates and SLA resolution tracking.
-  - **Hotspot Map**: Interactive district geographical heatmaps with district location filtering across 7 states.
-  - **Executive Analytics & Reports**: Departmental resolution metrics, overdue complaint tracking, and SLA performance reports.
-  - **Trend Analysis**: Interactive multi-department time-series trends (Line Charts & Stacked Area Charts).
-
-- **👤 Citizen Portal**:
-  - **Dynamic Complaint Submission**: Dynamic multi-state & district dropdown selector.
-  - **Complaint Tracking**: Real-time status lookup and resolution verification.
+An AI-powered platform designed to connect citizens with government services while providing government officials with intelligent analytics, predictions, complaint intelligence, anomaly detection, and decision-support capabilities.
 
 ---
 
-## 🚀 Quick Start Guide
+## 📌 Project Overview
 
-### 1. Prerequisites
-- Python 3.10 or higher
-- Git ([Download Git](https://git-scm.com/downloads))
+The **Government AI Portal** combines a citizen-facing service portal with an AI-powered government intelligence platform.
 
-### 2. Installation & Setup
-```bash
-# Clone the repository
-git clone https://github.com/YOUR_USERNAME/ML_project.git
-cd ML_project
+The system provides two major experiences:
 
-# Activate Virtual Environment (Windows)
-venv\Scripts\activate
+### 👤 Citizen Portal
+Citizens can:
+- Access government services
+- Submit complaints
+- Track complaint status
+- View complaint history
+- Get AI-powered assistance
+- Contact support
+- Access information about the portal
 
-# Install Dependencies
-pip install -r requirements.txt
-```
-
-### 3. Running the Application
-```bash
-# Start FastAPI Backend Server
-venv\Scripts\python.exe -m uvicorn app.backend.main:app --host 127.0.0.1 --port 8000
-
-# Start Streamlit Frontend Web App (In a new terminal)
-venv\Scripts\python.exe -m streamlit run app/frontend/login.py --server.port 8501
-```
-
-Access the app at: `http://localhost:8501`
-
----
-
-## 🔑 Demo Accounts
-
-| Role | Email | Password |
-|---|---|---|
-| 🏛️ **Government Official** | `official@gov.in` | `official123` |
-| 👤 **Citizen Portal** | `citizen@gov.in` | `citizen123` |
+### 🏛️ Government / Official Portal
+Government officials can use AI-powered tools for:
+- Complaint analysis
+- Department prediction
+- Priority prediction
+- Sentiment analysis
+- Emergency detection
+- Anomaly detection
+- Harmful-content detection
+- Trend forecasting
+- Government feedback analysis
+- Analytics and reporting
+- Hotspot analysis
+- Social-media intelligence
+- Action and decision support
 
 ---
 
-## 📄 License
-© 2026 Government AI Portal. All rights reserved.
+# 🎯 Problem Statement
+
+Government departments receive large volumes of citizen complaints, feedback, requests, and other information.
+
+Manually processing this information can make it difficult to:
+
+- Identify the correct department
+- Prioritize important complaints
+- Detect emergencies
+- Understand citizen sentiment
+- Identify unusual complaint patterns
+- Analyze feedback at scale
+- Forecast emerging trends
+- Support data-driven decision making
+
+The Government AI Portal addresses these challenges by combining a citizen service platform with machine-learning-based intelligence tools.
+
+---
+
+# 💡 Proposed Solution
+
+The platform uses machine-learning models and analytics to transform citizen and government data into actionable information.
+
+The system can assist with:
+
+**Citizen Input → Data Processing → AI/ML Analysis → Prediction & Classification → Government Intelligence → Decision Support**
+
+This allows government officials to work with structured insights instead of relying only on manual analysis.
+
+---
+
+# 🚀 Key Features
+
+## 👤 Citizen Services
+
+- Citizen login
+- Complaint submission
+- Complaint tracking
+- Complaint history
+- AI Help
+- Contact Support
+- About / portal information
+
+## 🏛️ Government Intelligence
+
+- Government dashboard
+- Complaint analytics
+- Prediction dashboard
+- Executive reporting
+- Action queue
+- Anomaly detection
+- Hotspot mapping
+- Social-media analysis
+- Trend analysis
+- Government feedback analysis
+
+## 🤖 AI / Machine Learning
+
+The project contains trained models for:
+
+- Sentiment Analysis
+- Complaint Reason Classification
+- Department Prediction
+- Department Priority Prediction
+- Government Feedback Category Classification
+- Emergency Detection
+- Harmful Content Detection
+- Anomaly Detection
+- Trend Forecasting
+
+---
+
+# 🧠 Machine Learning Components
+
+| ML Component | Purpose |
+|---|---|
+| Sentiment Model | Analyzes sentiment in text-based feedback |
+| Complaint Reason Model | Classifies the reason/category of complaints |
+| Department Model | Predicts the relevant government department |
+| Department Priority Model | Helps determine complaint priority |
+| Feedback Category Model | Categorizes government feedback |
+| Emergency Model | Detects emergency-related content |
+| Harmful Content Model | Identifies potentially harmful content |
+| Anomaly Detection Model | Detects unusual patterns |
+| Trend Forecasting Model | Forecasts trends from historical data |
+
+The trained models and supporting vectorizers/encoders are stored in the project's `app/pickles/` directory.
+
+---
+
+# 📊 Government Intelligence Modules
+
+The official portal contains several analytical views:
+
+- Dashboard
+- Predictions
+- Dashboard Predictions
+- Executive Report
+- Action Queue
+- Anomaly Detection
+- Hotspot Map
+- Social Media Analysis
+- Trend Analysis
+
+These modules provide different perspectives for analyzing government-related data.
+
+---
+
+# 🏗️ Project Architecture
+
+```text
+Government AI Portal
+│
+├── Citizen Portal
+│   ├── Login
+│   ├── Submit Complaint
+│   ├── Track Complaint
+│   ├── Complaint History
+│   ├── AI Help
+│   └── Support
+│
+├── Government / Official Portal
+│   ├── Dashboard
+│   ├── Predictions
+│   ├── Executive Report
+│   ├── Action Queue
+│   ├── Anomaly Detection
+│   ├── Hotspot Map
+│   ├── Social Media Analysis
+│   └── Trend Analysis
+│
+├── Backend
+│   ├── Prediction Services
+│   ├── Government Analytics
+│   └── Model Inspection
+│
+├── Database
+│   ├── Database Configuration
+│   ├── Database Connection
+│   └── Schemas
+│
+├── Machine Learning Models
+│   └── Trained Models / Vectorizers / Encoders
+│
+└── Notebooks
+    └── Data Science & Model Development
