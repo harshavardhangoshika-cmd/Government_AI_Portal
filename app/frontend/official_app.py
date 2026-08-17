@@ -249,28 +249,12 @@ if __name__ == "__main__":
         initial_sidebar_state="expanded"
     )
 
-    # --------------------------------------------------------
-    # DEFAULT SESSION STATE
-    # --------------------------------------------------------
+    # Do NOT automatically log in.
+    # The main app.py controls authentication.
+    if not st.session_state.get("logged_in", False):
+        st.stop()
 
-    if "logged_in" not in st.session_state:
-
-        st.session_state.logged_in = True
-
-    if "user_role" not in st.session_state:
-
-        st.session_state.user_role = (
-            "Government Official"
-        )
-
-    if "user_email" not in st.session_state:
-
-        st.session_state.user_email = (
-            "official@gov.in"
-        )
-
-    # --------------------------------------------------------
-    # OPEN PORTAL
-    # --------------------------------------------------------
+    if st.session_state.get("user_role") != "Government Official":
+        st.stop()
 
     show_official_portal()

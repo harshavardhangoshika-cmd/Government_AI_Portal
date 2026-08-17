@@ -386,6 +386,8 @@ def show_citizen_portal():
         st.session_state.user_role = None
         st.session_state.user_email = None
 
+    st.rerun()
+
         
 
 
@@ -402,13 +404,12 @@ if __name__ == "__main__":
         initial_sidebar_state="expanded"
     )
 
-    if "logged_in" not in st.session_state:
-        st.session_state.logged_in = True
+    # Do NOT automatically log in.
+    # The main app.py controls authentication.
+    if not st.session_state.get("logged_in", False):
+        st.stop()
 
-    if "user_role" not in st.session_state:
-        st.session_state.user_role = "Citizen"
-
-    if "user_email" not in st.session_state:
-        st.session_state.user_email = "citizen@gov.in"
+    if st.session_state.get("user_role") != "Citizen":
+        st.stop()
 
     show_citizen_portal()

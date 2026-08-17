@@ -8,7 +8,7 @@ import requests
 from app.database.database import get_all_complaints
 from app.utils.sla_engine import enrich_complaints_with_sla
 
-API_URL = "http://127.0.0.1:8000"
+API_URL = "https://government-ai-api.onrender.com"
 
 from app.utils.locations import DISTRICT_COORDS
 
@@ -219,3 +219,4 @@ def show():
         st.plotly_chart(fig_dept, use_container_width=True)
     else:
         st.info(f"No active complaints logged for {selected_district_detail} under the current filter.")
+

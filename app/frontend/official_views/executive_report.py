@@ -6,7 +6,7 @@ import requests
 from app.database.database import get_all_complaints
 from app.utils.sla_engine import enrich_complaints_with_sla
 
-API_URL = "http://127.0.0.1:8000"
+API_URL = "https://government-ai-api.onrender.com"
 
 
 def fetch_complaints():
@@ -157,3 +157,4 @@ END OF EXECUTIVE MEMORANDUM - GOVERNMENT CITIZEN INTELLIGENCE SYSTEM
         )
     with d_col2:
         st.success("✅ Executive Briefing generated and ready to download or forward to supervisors!")
+

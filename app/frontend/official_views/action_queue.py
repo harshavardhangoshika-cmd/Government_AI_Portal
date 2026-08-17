@@ -6,7 +6,7 @@ import requests
 from app.database.database import get_all_complaints, update_complaint_status as db_update_status
 from app.utils.sla_engine import enrich_complaints_with_sla
 
-API_URL = "http://127.0.0.1:8000"
+API_URL = "https://government-ai-api.onrender.com"
 
 
 def fetch_complaints():
@@ -252,3 +252,4 @@ def show():
                             st.rerun()
                         else:
                             st.error(msg)
+

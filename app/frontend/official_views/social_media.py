@@ -8,10 +8,10 @@ import plotly.graph_objects as go
 # CONFIGURATION
 # ============================================================
 
-API_URL = "http://127.0.0.1:8000/government/social-media"
+API_URL = "https://government-ai-api.onrender.com/government/social-media"
 
 FORECAST_API_URL = (
-    "http://127.0.0.1:8000/government/social-media/forecast"
+    "https://government-ai-api.onrender.com/government/social-media/forecast"
 )
 
 

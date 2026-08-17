@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 # BACKEND CONFIGURATION
 # ============================================================
 
-API_URL = "http://127.0.0.1:8000"
+API_URL = "https://government-ai-api.onrender.com"
 
 ANOMALY_THRESHOLD = 100.0
 
