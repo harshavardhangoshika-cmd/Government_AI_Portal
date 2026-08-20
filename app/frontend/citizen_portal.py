@@ -264,26 +264,6 @@ def show_citizen_portal():
     st.sidebar.divider()
 
     # ========================================================
-    # LOGOUT
-    # ========================================================
-    # IMPORTANT:
-    # Logout is placed BEFORE navigation so it is always
-    # rendered regardless of which page is opened.
-    # ========================================================
-
-    st.sidebar.caption(
-        "Account"
-    )
-
-    if st.sidebar.button(
-        "🚪 Logout",
-        use_container_width=True
-    ):
-        logout()
-
-    st.sidebar.divider()
-
-    # ========================================================
     # NAVIGATION
     # ========================================================
 
@@ -369,6 +349,18 @@ def show_citizen_portal():
         from views import about
 
         about.show()
+
+    # ========================================================
+    # LOGOUT AT BOTTOM OF SIDEBAR
+    # ========================================================
+
+    st.sidebar.divider()
+
+    if st.sidebar.button(
+        "🚪 Logout",
+        use_container_width=True
+    ):
+        logout()
 
 
 # ============================================================
