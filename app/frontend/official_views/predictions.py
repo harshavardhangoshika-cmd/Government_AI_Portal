@@ -8,6 +8,22 @@ import pandas as pd
 from app.database.database import supabase
 
 
+@st.cache_data(ttl=15)
+def fetch_all_db_complaints():
+    try:
+        res = (
+            supabase
+            .table("complaints")
+            .select("*")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return res.data or []
+    except Exception:
+        from app.database.database import get_all_complaints
+        return get_all_complaints() or []
+
+
 # ============================================================
 # GOVERNMENT COMPLAINTS
 # ============================================================
@@ -27,39 +43,20 @@ def show():
         "received by the government."
     )
 
+    # Apply Official Jurisdiction Scope
+    jurisdiction_scope = st.session_state.get("official_jurisdiction", "All Jurisdictions (Statewide)")
+    if jurisdiction_scope and jurisdiction_scope != "All Jurisdictions (Statewide)":
+        st.info(f"🔒 **Jurisdiction Scope Active**: Displaying complaints assigned to **{jurisdiction_scope}**.")
+
     st.markdown("---")
 
+    complaints = fetch_all_db_complaints()
 
-    # ========================================================
-    # LOAD COMPLAINTS
-    # ========================================================
-
-    try:
-
-        response = (
-            supabase
-            .table("complaints")
-            .select("*")
-            .order(
-                "created_at",
-                desc=True
-            )
-            .execute()
-        )
-
-        complaints = response.data or []
-
-    except Exception as e:
-
-        st.error(
-            "Unable to load complaints from database."
-        )
-
-        st.code(
-            str(e)
-        )
-
-        return
+    if jurisdiction_scope and jurisdiction_scope != "All Jurisdictions (Statewide)":
+        complaints = [
+            c for c in complaints
+            if str(c.get("district") or "Bengaluru Urban").strip().lower() == jurisdiction_scope.lower()
+        ]
 
 
     # ========================================================

@@ -7,32 +7,36 @@ import pandas as pd
 # FASTAPI BACKEND
 # ============================================================
 
-API_URL = "https://government-ai-api.onrender.com"
+import os
 
+PRIMARY_API_URL = os.getenv("API_URL", "http://127.0.0.1:8000").rstrip("/")
+FALLBACK_API_URL = "https://government-ai-api.onrender.com"
+
+def _fetch_api(path, timeout=2):
+    for base in [PRIMARY_API_URL, FALLBACK_API_URL]:
+        try:
+            res = requests.get(f"{base}{path}", timeout=timeout)
+            if res.status_code == 200:
+                return res.json()
+        except Exception:
+            continue
+    return None
 
 # ============================================================
 # GET GOVERNMENT PREDICTIONS
 # ============================================================
 
+@st.cache_data(ttl=30)
 def get_predictions():
+    res = _fetch_api("/government/predictions", timeout=2)
+    if res:
+        return res
 
+    # Direct local calculation fallback
     try:
-
-        response = requests.get(
-            f"{API_URL}/government/predictions",
-            timeout=10
-        )
-
-        response.raise_for_status()
-
-        return response.json()
-
-    except requests.exceptions.RequestException as e:
-
-        st.error(
-            f"❌ Unable to connect to Government Backend: {e}"
-        )
-
+        from app.backend.main import government_predictions
+        return government_predictions()
+    except Exception:
         return None
 
 
@@ -449,7 +453,7 @@ def show():
 
         st.error(
             f"🚨 Urgent Priority\n\n"
-            f"{priority.get('Urgent', 0)} complaints"
+            f"{priority.get('urgent', 0)} complaints"
         )
 
 

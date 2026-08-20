@@ -6,17 +6,24 @@ import requests
 from app.database.database import get_all_complaints, update_complaint_status as db_update_status
 from app.utils.sla_engine import enrich_complaints_with_sla
 
-API_URL = "https://government-ai-api.onrender.com"
+import os
+
+PRIMARY_API_URL = os.getenv("API_URL", "http://127.0.0.1:8000").rstrip("/")
+FALLBACK_API_URL = "https://government-ai-api.onrender.com"
 
 
+@st.cache_data(ttl=15)
 def fetch_complaints():
     """Fetch enriched complaints from FastAPI or fallback to database directly."""
-    try:
-        res = requests.get(f"{API_URL}/government/complaints", timeout=5)
-        if res.status_code == 200:
-            return res.json().get("data", [])
-    except Exception:
-        pass
+    for base_url in [PRIMARY_API_URL, FALLBACK_API_URL]:
+        try:
+            res = requests.get(f"{base_url}/government/complaints", timeout=2)
+            if res.status_code == 200:
+                data = res.json().get("data", [])
+                if data:
+                    return data
+        except Exception:
+            continue
 
     # Fallback to direct DB query + SLA calculation
     raw = get_all_complaints() or []

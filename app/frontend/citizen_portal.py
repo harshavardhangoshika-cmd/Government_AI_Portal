@@ -8,22 +8,6 @@ from pathlib import Path
 # FIX IMPORT PATH
 # ============================================================
 
-# Current file:
-#
-# ML_project/
-# └── app/
-#     └── frontend/
-#         └── app.py
-#
-# We need:
-#
-# ML_project/app/
-#
-# in Python path so that:
-# from database.database import supabase
-#
-# works correctly.
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 APP_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = Path(__file__).resolve().parent
@@ -77,6 +61,25 @@ def get_supabase():
 # COMPLAINT HISTORY
 # ============================================================
 
+@st.cache_data(ttl=15)
+def fetch_citizen_complaints():
+    supabase = get_supabase()
+    if supabase is None:
+        return []
+    try:
+        response = (
+            supabase
+            .table("complaints")
+            .select("*")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return response.data or []
+    except Exception:
+        from app.database.database import get_all_complaints
+        return get_all_complaints() or []
+
+
 def show_complaint_history():
 
     st.markdown("---")
@@ -87,33 +90,8 @@ def show_complaint_history():
         "View all complaints submitted by your account."
     )
 
-    # --------------------------------------------------------
-    # DATABASE
-    # --------------------------------------------------------
-
-    supabase = get_supabase()
-
-    if supabase is None:
-        return
-
     try:
-
-        # ----------------------------------------------------
-        # GET ALL COMPLAINTS
-        # ----------------------------------------------------
-
-        response = (
-            supabase
-            .table("complaints")
-            .select("*")
-            .order(
-                "created_at",
-                desc=True
-            )
-            .execute()
-        )
-
-        complaints = response.data or []
+        complaints = fetch_citizen_complaints()
 
         # ----------------------------------------------------
         # NO COMPLAINTS
@@ -255,11 +233,11 @@ def show_complaint_history():
 def show_citizen_portal():
 
     # ========================================================
-    # SIDEBAR
+    # SIDEBAR HEADER
     # ========================================================
 
     st.sidebar.title(
-        "🏛 Citizen Portal"
+        "🏛️ Citizen Portal"
     )
 
     st.sidebar.caption(
@@ -286,6 +264,26 @@ def show_citizen_portal():
     st.sidebar.divider()
 
     # ========================================================
+    # LOGOUT
+    # ========================================================
+    # IMPORTANT:
+    # Logout is placed BEFORE navigation so it is always
+    # rendered regardless of which page is opened.
+    # ========================================================
+
+    st.sidebar.caption(
+        "Account"
+    )
+
+    if st.sidebar.button(
+        "🚪 Logout",
+        use_container_width=True
+    ):
+        logout()
+
+    st.sidebar.divider()
+
+    # ========================================================
     # NAVIGATION
     # ========================================================
 
@@ -294,11 +292,12 @@ def show_citizen_portal():
         [
             "🏠 Home",
             "📝 Submit Complaint",
-            "🔍 Track Complaint",
+            "🔎 Track Complaint",
             "🤖 AI Help",
             "📞 Contact Support",
             "ℹ️ About"
-        ]
+        ],
+        key="citizen_navigation"
     )
 
     # ========================================================
@@ -325,7 +324,7 @@ def show_citizen_portal():
     # TRACK COMPLAINT
     # ========================================================
 
-    elif page == "🔍 Track Complaint":
+    elif page == "🔎 Track Complaint":
 
         from views import track
 
@@ -371,25 +370,6 @@ def show_citizen_portal():
 
         about.show()
 
-    # ========================================================
-    # LOGOUT
-    # ========================================================
-
-    st.sidebar.divider()
-
-    if st.sidebar.button(
-        "🚪 Logout",
-        use_container_width=True
-    ):
-
-        st.session_state.logged_in = False
-        st.session_state.user_role = None
-        st.session_state.user_email = None
-
-    st.rerun()
-
-        
-
 
 # ============================================================
 # DIRECT RUN
@@ -397,19 +377,49 @@ def show_citizen_portal():
 
 if __name__ == "__main__":
 
-    st.set_page_config(
-        page_title="Government Citizen Portal",
-        page_icon="🏛️",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
+    if not st.session_state.get(
+        "logged_in",
+        False
+    ):
 
-    # Do NOT automatically log in.
-    # The main app.py controls authentication.
-    if not st.session_state.get("logged_in", False):
+        st.warning(
+            "Please login to access the Citizen Portal."
+        )
+
         st.stop()
 
-    if st.session_state.get("user_role") != "Citizen":
+    if st.session_state.get(
+        "user_role"
+    ) != "Citizen":
+
+        st.error(
+            "Access denied. Citizen account required."
+        )
+
         st.stop()
 
     show_citizen_portal()
+
+# ============================================================
+# LOGOUT
+# ============================================================
+
+def logout():
+
+    st.session_state.logged_in = False
+    st.session_state.user_role = None
+    st.session_state.user_email = None
+
+    # Clear login-related session values if they exist
+    for key in [
+        "login_email",
+        "login_password",
+        "user_name"
+    ]:
+        if key in st.session_state:
+            del st.session_state[key]
+
+    st.rerun()
+
+
+# ============================================================

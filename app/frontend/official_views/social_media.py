@@ -4,52 +4,36 @@ import pandas as pd
 import plotly.graph_objects as go
 
 
-# ============================================================
-# CONFIGURATION
-# ============================================================
+import os
 
-API_URL = "https://government-ai-api.onrender.com/government/social-media"
+PRIMARY_API_URL = os.getenv("API_URL", "http://127.0.0.1:8000").rstrip("/")
+FALLBACK_API_URL = "https://government-ai-api.onrender.com"
 
-FORECAST_API_URL = (
-    "https://government-ai-api.onrender.com/government/social-media/forecast"
-)
-
+def _fetch_api(path, timeout=2):
+    for base in [PRIMARY_API_URL, FALLBACK_API_URL]:
+        try:
+            res = requests.get(f"{base}{path}", timeout=timeout)
+            if res.status_code == 200:
+                return res.json()
+        except Exception:
+            continue
+    return None
 
 # ============================================================
 # LOAD SOCIAL MEDIA DATA FROM BACKEND
 # ============================================================
 
+@st.cache_data(ttl=60)
 def load_social_media_data():
+    res = _fetch_api("/government/social-media", timeout=2)
+    if res:
+        return res
 
+    # Direct local calculation fallback
     try:
-
-        response = requests.get(
-            API_URL,
-            timeout=30
-        )
-
-        response.raise_for_status()
-
-        return response.json()
-
-    except requests.exceptions.RequestException as e:
-
-        st.error(
-            "Unable to connect to the Social Media Analysis API."
-        )
-
-        st.code(str(e))
-
-        return None
-
-    except Exception as e:
-
-        st.error(
-            "Unable to load Social Media Analysis."
-        )
-
-        st.code(str(e))
-
+        from app.backend.government_analytics import get_social_media_analysis
+        return get_social_media_analysis()
+    except Exception:
         return None
 
 
@@ -57,37 +41,17 @@ def load_social_media_data():
 # LOAD SOCIAL MEDIA FORECAST FROM BACKEND
 # ============================================================
 
+@st.cache_data(ttl=60)
 def load_social_media_forecast():
+    res = _fetch_api("/government/social-media/forecast", timeout=2)
+    if res:
+        return res
 
+    # Direct local calculation fallback
     try:
-
-        response = requests.get(
-            FORECAST_API_URL,
-            timeout=30
-        )
-
-        response.raise_for_status()
-
-        return response.json()
-
-    except requests.exceptions.RequestException as e:
-
-        st.error(
-            "Unable to connect to the Social Media Forecast API."
-        )
-
-        st.code(str(e))
-
-        return None
-
-    except Exception as e:
-
-        st.error(
-            "Unable to load Social Media Forecast."
-        )
-
-        st.code(str(e))
-
+        from app.backend.government_analytics import get_social_media_forecast
+        return get_social_media_forecast()
+    except Exception:
         return None
 
 

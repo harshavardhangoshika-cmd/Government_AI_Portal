@@ -17,8 +17,9 @@ if os.path.exists(SRC_VIKSIT) and not os.path.exists(DST_VIKSIT):
         pass
 
 
+@st.cache_data(ttl=3600)
 def get_base64_image(image_path):
-    if os.path.exists(image_path):
+    if image_path and os.path.exists(image_path):
         with open(image_path, "rb") as f:
             encoded = base64.b64encode(f.read()).decode()
             mime = "image/png" if image_path.endswith(".png") else "image/jpeg"
@@ -26,7 +27,7 @@ def get_base64_image(image_path):
     return ""
 
 
-SKYLINE_B64 = get_base64_image(DST_VIKSIT) if os.path.exists(DST_VIKSIT) else get_base64_image(SRC_VIKSIT)
+SKYLINE_B64 = get_base64_image(DST_VIKSIT) if os.path.exists(DST_VIKSIT) else (get_base64_image(SRC_VIKSIT) if os.path.exists(SRC_VIKSIT) else "")
 
 
 # ============================================================

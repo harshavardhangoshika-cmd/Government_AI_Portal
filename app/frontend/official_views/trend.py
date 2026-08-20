@@ -9,23 +9,31 @@ import plotly.express as px
 # FASTAPI BACKEND
 # ============================================================
 
-API_URL = "https://government-ai-api.onrender.com"
+import os
 
+PRIMARY_API_URL = os.getenv("API_URL", "http://127.0.0.1:8000").rstrip("/")
+FALLBACK_API_URL = "https://government-ai-api.onrender.com"
+
+def _fetch_api(path, timeout=2):
+    for base in [PRIMARY_API_URL, FALLBACK_API_URL]:
+        try:
+            res = requests.get(f"{base}{path}", timeout=timeout)
+            if res.status_code == 200:
+                return res.json()
+        except Exception:
+            continue
+    return None
 
 # ============================================================
 # DEPARTMENT TRENDS DATA
 # ============================================================
 
+@st.cache_data(ttl=30)
 def get_department_trends():
     """Fetch complaint trends aggregated by department."""
-    try:
-        response = requests.get(f"{API_URL}/government/department-trends", timeout=10)
-        if response.status_code == 200:
-            data = response.json().get("data", [])
-            if data:
-                return data
-    except Exception:
-        pass
+    res = _fetch_api("/government/department-trends", timeout=2)
+    if res and "data" in res and res["data"]:
+        return res["data"]
 
     # Direct database fallback if backend API is unreachable
     try:
@@ -50,54 +58,39 @@ def get_department_trends():
 # CURRENT TREND
 # ============================================================
 
+@st.cache_data(ttl=30)
 def get_current_trend():
+    res = _fetch_api("/government/trends", timeout=2)
+    if res and "data" in res and res["data"]:
+        return res["data"]
 
+    # Direct local fallback
     try:
-
-        response = requests.get(
-            f"{API_URL}/government/trends",
-            timeout=10
-        )
-
-        response.raise_for_status()
-
-        return response.json().get(
-            "data",
-            []
-        )
-
-    except requests.exceptions.RequestException as e:
-
-        st.error(
-            f"❌ Unable to connect to Government Backend: {e}"
-        )
-
-        return []
+        from app.backend.government_analytics import get_complaint_history
+        history = get_complaint_history()
+        if not history.empty:
+            history["date"] = pd.to_datetime(history["date"]).dt.strftime("%Y-%m-%d")
+            return history.to_dict(orient="records")
+    except Exception:
+        pass
+    return []
 
 
 # ============================================================
 # FORECAST DEMONSTRATION
 # ============================================================
 
+@st.cache_data(ttl=30)
 def get_forecast_demo():
+    res = _fetch_api("/government/forecast-demo", timeout=2)
+    if res:
+        return res
 
+    # Direct local fallback
     try:
-
-        response = requests.get(
-            f"{API_URL}/government/forecast-demo",
-            timeout=10
-        )
-
-        response.raise_for_status()
-
-        return response.json()
-
-    except requests.exceptions.RequestException as e:
-
-        st.error(
-            f"❌ Unable to load forecasting model data: {e}"
-        )
-
+        from app.backend.government_analytics import get_forecast_demonstration
+        return get_forecast_demonstration()
+    except Exception:
         return None
 
 

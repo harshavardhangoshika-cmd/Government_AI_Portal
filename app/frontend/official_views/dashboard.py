@@ -7,35 +7,37 @@ import pandas as pd
 # FASTAPI BACKEND
 # ============================================================
 
-API_URL = "https://government-ai-api.onrender.com"
+import os
 
+PRIMARY_API_URL = os.getenv("API_URL", "http://127.0.0.1:8000").rstrip("/")
+FALLBACK_API_URL = "https://government-ai-api.onrender.com"
+
+def _fetch_api(path, timeout=2):
+    for base in [PRIMARY_API_URL, FALLBACK_API_URL]:
+        try:
+            res = requests.get(f"{base}{path}", timeout=timeout)
+            if res.status_code == 200:
+                return res.json()
+        except Exception:
+            continue
+    return None
 
 # ============================================================
 # GET DASHBOARD DATA
 # ============================================================
 
+@st.cache_data(ttl=30)
 def get_dashboard_data():
-    """
-    Fetch government dashboard statistics from FastAPI.
-    """
+    """Fetch government dashboard statistics from FastAPI or local analytics fallback."""
+    res = _fetch_api("/government/dashboard", timeout=2)
+    if res:
+        return res
 
+    # Direct local calculation fallback
     try:
-
-        response = requests.get(
-            f"{API_URL}/government/dashboard",
-            timeout=10
-        )
-
-        response.raise_for_status()
-
-        return response.json()
-
-    except requests.exceptions.RequestException as e:
-
-        st.error(
-            f"❌ Unable to connect to Government Backend: {e}"
-        )
-
+        from app.backend.government_analytics import get_dashboard_summary
+        return get_dashboard_summary()
+    except Exception:
         return None
 
 
@@ -43,29 +45,23 @@ def get_dashboard_data():
 # GET TREND DATA
 # ============================================================
 
+@st.cache_data(ttl=30)
 def get_trend_data():
-    """
-    Fetch complaint trend information from FastAPI.
-    """
+    """Fetch complaint trend information from FastAPI or local analytics fallback."""
+    res = _fetch_api("/government/trends", timeout=2)
+    if res:
+        return res
 
+    # Direct local calculation fallback
     try:
-
-        response = requests.get(
-            f"{API_URL}/government/trends",
-            timeout=10
-        )
-
-        response.raise_for_status()
-
-        return response.json()
-
-    except requests.exceptions.RequestException as e:
-
-        st.error(
-            f"❌ Unable to load complaint trends: {e}"
-        )
-
-        return None
+        from app.backend.government_analytics import get_complaint_history
+        history = get_complaint_history()
+        if not history.empty:
+            history["date"] = pd.to_datetime(history["date"]).dt.strftime("%Y-%m-%d")
+            return {"data": history.to_dict(orient="records")}
+    except Exception:
+        pass
+    return None
 
 
 # ============================================================
