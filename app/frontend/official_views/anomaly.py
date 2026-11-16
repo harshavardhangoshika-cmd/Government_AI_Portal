@@ -8,14 +8,15 @@ import plotly.graph_objects as go
 # BACKEND CONFIGURATION
 # ============================================================
 
-import os
+try:
+    from app.frontend.utils.api import get_api_urls
+except ImportError:
+    from utils.api import get_api_urls
 
-PRIMARY_API_URL = os.getenv("API_URL", "http://127.0.0.1:8000").rstrip("/")
-FALLBACK_API_URL = "https://government-ai-api.onrender.com"
 ANOMALY_THRESHOLD = 100.0
 
 def _fetch_api(path, timeout=2):
-    for base in [PRIMARY_API_URL, FALLBACK_API_URL]:
+    for base in get_api_urls():
         try:
             res = requests.get(f"{base}{path}", timeout=timeout)
             if res.status_code == 200:

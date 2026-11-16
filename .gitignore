@@ -2,7 +2,24 @@
 venv/
 env/
 ENV/
-.venv
+.venv/
+venv.zip
+
+# Large ZIP archives and redundant backups
+*.zip
+*.tar.gz
+*.rar
+
+# Training datasets (keep repository light; model is already trained)
+app/dl/image_classification/dataset/
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# Environment Variables & Secrets (CRITICAL FOR DEPLOYMENT SECURITY)
+.env
+*.env
+app/database/.env
+.streamlit/secrets.toml
 
 # Python Bytecode & Cache
 __pycache__/
@@ -10,15 +27,34 @@ __pycache__/
 *$py.class
 .pytest_cache/
 
-# Environment Variables & Secrets
-.env
-app/database/.env
-
 # IDE & OS Files
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 
-# Streamlit Cache
-.streamlit/
+# Streamlit pages/ sub-directory – this app uses a single-page login router
+# that imports citizen_portal.py and official_app.py directly as modules.
+# A pages/ directory causes Streamlit auto-discovery to register duplicate
+# URL path names, triggering StreamlitAPIException at startup.
+app/frontend/pages/
+
+# DL image splits (training images – not needed for inference, only the model .keras file is)
+app/dl/image_classification/splits/
+
+# Notebooks – training/analysis only, not needed for deployment
+notebooks/
+*.ipynb
+
+# Loose root-level pickle duplicates
+feedback_category_prediction_model*.pkl
+
+# Pickle duplicates stored outside app/pickles/
+app/pickle_file/
+
+# Screenshot / reference images not needed for runtime
+app/frontend/government_ai_logo.png
+app/frontend/government_portal_exact.png
+app/frontend/government_portal_page.png
+app/frontend/government_portal_reference.png
+app/frontend/taj_mahal_hero_crop.png

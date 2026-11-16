@@ -102,13 +102,70 @@ The project contains trained models for:
 
 - Sentiment Analysis
 - Complaint Reason Classification
-- Department Prediction
+- Department Prediction (Hybrid ML + Rule Engine for Municipal and Central CPGRAMS Routing)
 - Department Priority Prediction
 - Government Feedback Category Classification
 - Emergency Detection
 - Harmful Content Detection
 - Anomaly Detection
 - Trend Forecasting
+- **Deep Learning Civic Image Classification** (MobileNetV2, 7 classes: `road_damage`, `garbage`, `streetlights`, `water_supply`, `electricity`, `traffic_safety`, `sewerage`)
+- **Civic RAG Assistant** (Hybrid TF-IDF + Dense Cosine + BM25 with 12 official statutory documents)
+
+---
+
+# 🧠 Machine Learning & Deep Learning Components
+
+| Component | Architecture / Model | Purpose / Metrics |
+|---|---|---|
+| Sentiment Model | TF-IDF + Logistic Regression | Analyzes sentiment in text complaints |
+| Complaint Reason Model | TF-IDF + LinearSVC | Classifies complaint reasons |
+| Department Routing | Hybrid LinearSVC + Rule Hierarchy | Routes complaints across Municipal (BBMP, BWSSB, BESCOM, Traffic Police) & Central CPGRAMS |
+| Department Priority Model | Multi-feature Pipeline Classifier | Predicts High/Medium/Low priority |
+| Emergency Model | TF-IDF + Random Forest | Detects critical emergencies (fires, explosions, collapsed structures) |
+| Harmful Content Model | TF-IDF Pipeline Classifier | Flags abusive/harmful content with false-positive safeguards |
+| **Civic Image Classifier** | **MobileNetV2 Transfer Learning** | **94.86% Unseen Test Accuracy across 7 civic complaint categories** |
+| **Civic RAG Assistant** | **Hybrid Semantic + BM25 Retriever** | **Statutory answers with citations (Sakala Act 2011, SWM Rules 2016, Central Schemes)** |
+
+---
+
+# 🚀 Deployment & Running the System
+
+### 1. Prerequisites & Environment Setup
+```bash
+# Activate virtual environment
+.\venv\Scripts\Activate.ps1
+
+# Install required dependencies
+pip install -r requirements.txt
+```
+
+### 2. Start FastAPI Backend Service
+```bash
+uvicorn app.backend.main:app --host 0.0.0.0 --port 8000 --reload
+```
+API Documentation will be available at `http://localhost:8000/docs`.
+
+Key Endpoints:
+- `GET /`: Health check
+- `POST /predict`: Multi-task NLP triage & persistent complaint submission
+- `POST /predict/image`: Deep Learning visual evidence classification
+- `POST /rag/query`: Civic RAG assistant for citizen statutory rights and scheme queries
+
+### 3. Start Citizen Portal (Streamlit)
+```bash
+streamlit run app/frontend/citizen_portal.py
+```
+Portal features:
+- **Submit Complaint**: Form with photo upload, real-time MobileNetV2 classification, automatic department and SLA matching, and offline draft failover.
+- **Track Status**: Live complaint status tracking with official complaint ID.
+- **🤖 AI Help**: Interactive civic assistant powered by the 12-document statutory knowledge base.
+- **Complaint History**: Historical logs with filtering.
+
+### 4. Start Government Official Dashboard
+```bash
+streamlit run app/frontend/app.py
+```
 
 ---
 

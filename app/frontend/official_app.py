@@ -18,14 +18,11 @@ if str(FRONTEND_DIR) not in sys.path:
 # ============================================================
 
 from official_views import dashboard
-from app.frontend.official_views import predictions
-from app.frontend.official_views import dashboard_predictions
+from official_views import predictions
+from official_views import dashboard_predictions
 from official_views import trend
 from official_views import anomaly
 from official_views import social_media
-from app.frontend.official_views import action_queue
-from app.frontend.official_views import hotspot_map
-from app.frontend.official_views import executive_report
 
 
 # ============================================================
@@ -49,7 +46,7 @@ def show_official_portal():
     st.sidebar.divider()
 
     # ========================================================
-    # LOGGED-IN USER & JURISDICTION SCOPE
+    # LOGGED-IN USER
     # ========================================================
 
     user_email = st.session_state.get(
@@ -65,18 +62,6 @@ def show_official_portal():
         "Government Official"
     )
 
-    from app.utils.locations import DISTRICT_COORDS
-
-    jurisdictions = ["All Jurisdictions (Statewide)"] + sorted(list(DISTRICT_COORDS.keys()))
-
-    selected_jurisdiction = st.sidebar.selectbox(
-        "📍 Official Jurisdiction Scope",
-        jurisdictions,
-        index=0
-    )
-
-    st.session_state["official_jurisdiction"] = selected_jurisdiction
-
     st.sidebar.divider()
 
     # ========================================================
@@ -86,9 +71,6 @@ def show_official_portal():
     page = st.sidebar.radio(
         "Navigation",
         [
-            "⚡ Needs Action Queue",
-            "📍 Location Hotspots",
-            "📄 Executive Report",
             "🏠 Dashboard",
             "🔮 Dashboard Predictions",
             "📋 Predictions",
@@ -97,38 +79,15 @@ def show_official_portal():
             "📱 Social Media Analysis",
             "📢 Announcements",
             "⚙️ Settings"
+            
         ]
     )
-
-    # ========================================================
-    # ACTION QUEUE
-    # ========================================================
-
-    if page == "⚡ Needs Action Queue":
-
-        action_queue.show()
-
-    # ========================================================
-    # LOCATION HOTSPOTS
-    # ========================================================
-
-    elif page == "📍 Location Hotspots":
-
-        hotspot_map.show()
-
-    # ========================================================
-    # EXECUTIVE REPORT
-    # ========================================================
-
-    elif page == "📄 Executive Report":
-
-        executive_report.show()
 
     # ========================================================
     # DASHBOARD
     # ========================================================
 
-    elif page == "🏠 Dashboard":
+    if page == "🏠 Dashboard":
 
         dashboard.show()
 
@@ -249,12 +208,28 @@ if __name__ == "__main__":
         initial_sidebar_state="expanded"
     )
 
-    # Do NOT automatically log in.
-    # The main app.py controls authentication.
-    if not st.session_state.get("logged_in", False):
-        st.stop()
+    # --------------------------------------------------------
+    # DEFAULT SESSION STATE
+    # --------------------------------------------------------
 
-    if st.session_state.get("user_role") != "Government Official":
-        st.stop()
+    if "logged_in" not in st.session_state:
+
+        st.session_state.logged_in = True
+
+    if "user_role" not in st.session_state:
+
+        st.session_state.user_role = (
+            "Government Official"
+        )
+
+    if "user_email" not in st.session_state:
+
+        st.session_state.user_email = (
+            "official@gov.in"
+        )
+
+    # --------------------------------------------------------
+    # OPEN PORTAL
+    # --------------------------------------------------------
 
     show_official_portal()

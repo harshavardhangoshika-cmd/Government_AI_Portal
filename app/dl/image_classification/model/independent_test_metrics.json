@@ -1,0 +1,136 @@
+{
+  "evaluation_type": "Independent Unseen Test Set Evaluation",
+  "total_test_images": 214,
+  "test_accuracy_pct": 94.86,
+  "classes": [
+    "electricity",
+    "garbage",
+    "road_damage",
+    "sewerage",
+    "streetlights",
+    "traffic_safety",
+    "water_supply"
+  ],
+  "classification_report": {
+    "electricity": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 33.0
+    },
+    "garbage": {
+      "precision": 0.9696969696969697,
+      "recall": 0.9696969696969697,
+      "f1-score": 0.9696969696969697,
+      "support": 33.0
+    },
+    "road_damage": {
+      "precision": 0.9393939393939394,
+      "recall": 0.9393939393939394,
+      "f1-score": 0.9393939393939394,
+      "support": 33.0
+    },
+    "sewerage": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 33.0
+    },
+    "streetlights": {
+      "precision": 0.875,
+      "recall": 0.9130434782608695,
+      "f1-score": 0.8936170212765957,
+      "support": 23.0
+    },
+    "traffic_safety": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 33.0
+    },
+    "water_supply": {
+      "precision": 0.8,
+      "recall": 0.7692307692307693,
+      "f1-score": 0.7843137254901961,
+      "support": 26.0
+    },
+    "accuracy": 0.9485981308411215,
+    "macro avg": {
+      "precision": 0.9405844155844155,
+      "recall": 0.9416235937975068,
+      "f1-score": 0.9410030936939572,
+      "support": 214.0
+    },
+    "weighted avg": {
+      "precision": 0.9482476635514019,
+      "recall": 0.9485981308411215,
+      "f1-score": 0.9483427493089103,
+      "support": 214.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      33,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      32,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    [
+      0,
+      0,
+      31,
+      0,
+      0,
+      0,
+      2
+    ],
+    [
+      0,
+      0,
+      0,
+      33,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      21,
+      0,
+      2
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      33,
+      0
+    ],
+    [
+      0,
+      1,
+      2,
+      0,
+      3,
+      0,
+      20
+    ]
+  ]
+}

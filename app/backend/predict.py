@@ -107,6 +107,20 @@ department_model = joblib.load(
     )
 )
 
+department_vectorizer = joblib.load(
+    os.path.join(
+        PICKLE_DIR,
+        "department_tfidf_vectorizer.pkl"
+    )
+)
+
+department_encoder = joblib.load(
+    os.path.join(
+        PICKLE_DIR,
+        "department_label_encoder.pkl"
+    )
+)
+
 
 # ============================================================
 # MODULE 5 : DEPARTMENT PRIORITY PREDICTION
@@ -245,63 +259,120 @@ def predict_sentiment(text: str):
 def refine_predictions_with_expert_rules(text: str, result: dict) -> dict:
     t_lower = text.lower()
 
-    # 1. HEALTH & HOSPITALS
-    health_keywords = ["hospital", "hospitals", "clinic", "doctor", "doctors", "medicine", "medicines", "medical", "ambulance", "phc", "patient", "nurse", "ward", "health"]
-    if any(kw in t_lower for kw in health_keywords):
-        result["department"] = "Health & Family Welfare"
-        result["complaint_reason"] = "Health & Medical Services"
-        if any(neg in t_lower for neg in ["not in good", "bad", "dirty", "poor", "no doctor", "corrupt", "unclean", "condition"]):
-            result["sentiment"] = "Negative"
+    # 1. POWER & ELECTRICAL HAZARDS (High specificity & life-safety priority)
+    power_keywords = [
+        "electricity", "power cut", "powercut", "transformer", "voltage", 
+        "blackout", "electric wire", "bescom", "live wire", "snapped wire", 
+        "sparking", "spark", "electric shock", "electrocution", "electric pole"
+    ]
+    is_power = any(kw in t_lower for kw in power_keywords)
+    if is_power:
+        result["department"] = "BESCOM / Power & Electricity"
+        result["complaint_reason"] = "Electricity & Power Supply"
+        result["sentiment"] = "Negative"
+        if any(h_kw in t_lower for h_kw in ["wire", "spark", "blackout", "snapped", "live", "transformer", "shock"]):
             result["priority"] = "High"
 
-    # 2. SANITATION, DRAINAGE & WATER SUPPLY
-    water_keywords = ["drainage", "sewer", "sewerage", "leakage", "water supply", "pipe", "pipeline", "tap water", "dirty water", "no water", "overflow", "stagnant"]
+    # 2. STREETLIGHTS
+    streetlight_keywords = [
+        "streetlight", "street light", "streetlights", "street lights", 
+        "lamp post", "lamppost", "dark street", "dark road", "street lamp", "light pole"
+    ]
+    if any(kw in t_lower for kw in streetlight_keywords):
+        result["department"] = "BESCOM / Municipal Electrical Works"
+        result["complaint_reason"] = "Streetlighting & Public Safety"
+        result["sentiment"] = "Negative"
+
+    # 3. SOLID WASTE & GARBAGE
+    garbage_keywords = [
+        "garbage", "waste", "trash", "dump", "dumping", "litter", "debris", 
+        "rubbish", "black spot", "dustbin", "refuse", "solid waste", 
+        "stinking waste", "rotten waste", "swm"
+    ]
+    if any(kw in t_lower for kw in garbage_keywords):
+        result["department"] = "Solid Waste Management / BBMP"
+        result["complaint_reason"] = "Public Cleanliness / Sanitation"
+        result["sentiment"] = "Negative"
+        if any(h_kw in t_lower for h_kw in ["stinking", "overflow", "disease", "pile"]):
+            result["priority"] = "High"
+
+    # 4. SANITATION, DRAINAGE, MANHOLES & WATER SUPPLY
+    water_keywords = [
+        "sewer", "sewerage", "sewage", "drainage", "drain", "water supply", 
+        "water pipe", "waterpipe", "pipeline", "tap water", "dirty water", 
+        "drinking water", "no water", "stagnant water", "manhole", 
+        "gutter", "cauvery water", "waterlogging", "water logging",
+        "burst pipe", "pipe leak", "water leak"
+    ]
     if any(kw in t_lower for kw in water_keywords):
         result["department"] = "BWSSB / Sanitation & Water"
         result["complaint_reason"] = "Water Supply & Sanitation"
         result["sentiment"] = "Negative"
-        if any(h_kw in t_lower for h_kw in ["leakage", "no water", "overflow", "days"]):
+        if any(h_kw in t_lower for h_kw in ["leakage", "no water", "overflow", "days", "disease", "outbreak", "burst"]):
             result["priority"] = "High"
 
-    # 3. ROADS & FOOTPATHS
-    road_keywords = ["pothole", "potholes", "road", "roads", "footpath", "asphalt", "tar road", "street", "street light", "streetlight"]
-    if any(kw in t_lower for kw in road_keywords):
+    # 5. TRAFFIC & ROAD SAFETY
+    traffic_keywords = [
+        "traffic signal", "traffic light", "traffic jam", "traffic congestion", 
+        "traffic police", "zebra crossing", "speed breaker", "signal dead", 
+        "signal not working", "silk board", "illegal parking", "wrong side", 
+        "rash driving", "junction jam"
+    ]
+    if any(kw in t_lower for kw in traffic_keywords):
+        result["department"] = "Traffic Police / Transport"
+        result["complaint_reason"] = "Traffic & Road Safety"
+        result["sentiment"] = "Negative"
+
+    # 6. ROADS & FOOTPATHS INFRASTRUCTURE (Specific physical damage, avoiding bare address words 'road'/'street')
+    road_damage_keywords = [
+        "pothole", "potholes", "crater", "craters", "damaged road", "broken road", 
+        "asphalt", "tar road", "uneven road", "road repair", "road work", 
+        "footpath broken", "damaged footpath", "paver block", "road cave"
+    ]
+    if any(kw in t_lower for kw in road_damage_keywords):
         result["department"] = "BBMP / Municipal Works"
         result["complaint_reason"] = "Mobility - Roads & Infrastructure"
         result["sentiment"] = "Negative"
 
-    # 4. POWER & ELECTRICITY
-    power_keywords = ["electricity", "power cut", "powercut", "transformer", "voltage", "blackout", "electric wire", "bescom"]
-    if any(kw in t_lower for kw in power_keywords):
-        result["department"] = "BESCOM / Power & Electricity"
-        result["complaint_reason"] = "Electricity & Power Supply"
+    # 7. HEALTH & HOSPITALS
+    health_keywords = [
+        "hospital", "hospitals", "clinic", "dispensary", "doctor", "doctors", 
+        "medicine", "medicines", "medical", "ambulance", "phc", "patient", 
+        "nurse", "ward", "health center"
+    ]
+    if any(kw in t_lower for kw in health_keywords):
+        result["department"] = "Health & Family Welfare"
+        result["complaint_reason"] = "Health & Medical Services"
         result["sentiment"] = "Negative"
-        if any(h_kw in t_lower for h_kw in ["power cut", "wire", "spark", "blackout"]):
+        if any(neg in t_lower for neg in ["absent", "no medicine", "emergency", "dirty", "unclean", "corrupt", "death"]):
             result["priority"] = "High"
 
-    # 5. EDUCATION & SCHOOLS / UNIVERSITIES
+    # 8. EDUCATION & SCHOOLS (Only if not a primary electrical or water hazard at school)
     education_keywords = [
         "school", "schools", "college", "colleges", "university", "education",
         "teacher", "teachers", "student", "students", "classroom", "midday meal",
         "mid day meal", "fees", "scholarship", "exam", "examination", "syllabus",
         "board exam", "pu college", "principal", "blackboard", "bdeo", "ddpi", "tuition"
     ]
-    if any(kw in t_lower for kw in education_keywords):
+    if any(kw in t_lower for kw in education_keywords) and not is_power:
         result["department"] = "Department of Education"
         result["complaint_reason"] = "Education & Academic Services"
-        if any(neg in t_lower for neg in ["not in good", "bad", "poor", "no teacher", "corrupt", "unclean", "no facilities", "delay", "high fees"]):
+        if any(neg in t_lower for neg in ["not in good", "bad", "poor", "no teacher", "corrupt", "unclean", "no facilities", "delay", "high fees", "spoiled", "leaking"]):
             result["sentiment"] = "Negative"
             result["priority"] = "Medium"
 
-    # 6. EMERGENCY DETECTION OVERRIDE
-    emergency_keywords = ["fire", "gas leak", "building collapse", "explosion", "drowning", "electrocution", "severe accident"]
+    # 9. EMERGENCY DETECTION OVERRIDE
+    emergency_keywords = [
+        "fire", "gas leak", "building collapse", "explosion", "drowning", 
+        "electrocution", "severe accident", "snapped wire", "sparking wire"
+    ]
     if any(kw in t_lower for kw in emergency_keywords):
         result["emergency"] = 1
         result["priority"] = "Urgent"
         result["sentiment"] = "Negative"
 
-    # 7. GENERAL COMPLAINT NEGATIVE PHRASE MARKERS
-    negative_markers = ["not in good", "not good", "bad", "terrible", "worst", "broken", "damaged", "no response", "delay", "useless", "fail"]
+    # 10. GENERAL COMPLAINT NEGATIVE PHRASE MARKERS
+    negative_markers = ["not in good", "not good", "bad", "terrible", "worst", "broken", "damaged", "no response", "delay", "useless", "fail", "hazard", "dangerous"]
     if any(nm in t_lower for nm in negative_markers):
         result["sentiment"] = "Negative"
 
@@ -420,11 +491,9 @@ def process_complaint(text):
     #
     # ========================================================
 
-    department_prediction = (
-        department_model.predict(
-            [text]
-        )[0]
-    )
+    department_features = department_vectorizer.transform([text])
+    department_code = department_model.predict(department_features)[0]
+    department_prediction = department_encoder.inverse_transform([department_code])[0]
 
     result["department"] = (
         department_prediction

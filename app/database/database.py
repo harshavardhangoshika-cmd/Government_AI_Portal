@@ -9,9 +9,16 @@ from app.database.config import SUPABASE_URL, SUPABASE_KEY
 # Create Supabase Connection
 # --------------------------------------------------
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-print("[OK] Supabase Connected Successfully!")
+supabase = None
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        print("[OK] Supabase Connected Successfully!")
+    except Exception as e:
+        print(f"[WARN] Supabase Connection Failed: {e}")
+        supabase = None
+else:
+    print("[WARN] Supabase credentials not set. Running in offline/draft mode.")
 
 def save_complaint(
     complaint_text,
@@ -26,6 +33,9 @@ def save_complaint(
     state=None,
     district=None
 ):
+    if supabase is None:
+        raise RuntimeError("Database connection not configured.")
+
     data = {
         "complaint_text": complaint_text,
         "sentiment": sentiment,
@@ -46,6 +56,8 @@ def save_complaint(
     return response.data[0]
 
 def get_complaint_by_number(complaint_number):
+    if supabase is None:
+        return None
 
     response = (
         supabase
@@ -61,6 +73,8 @@ def get_complaint_by_number(complaint_number):
     return None
 
 def get_all_complaints():
+    if supabase is None:
+        return []
 
     response = (
         supabase
@@ -70,9 +84,12 @@ def get_all_complaints():
         .execute()
     )
 
-    return response.data
+    return response.data or []
 
 def update_complaint_status(complaint_number, status, assigned_officer=None, officer_remarks=None, department=None, priority=None):
+    if supabase is None:
+        return None
+
     from datetime import datetime, timezone
 
     update_data = {

@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 import pandas as pd
 
@@ -6,6 +6,11 @@ from typing import Optional, List
 from datetime import datetime, timezone, timedelta
 
 from app.backend.predict import process_complaint
+
+try:
+    from app.dl.image_classification.predict_image import classify_image
+except ImportError:
+    classify_image = None
 
 from app.backend.government_analytics import (
     get_dashboard_summary,
@@ -53,6 +58,11 @@ class StatusUpdateRequest(BaseModel):
     priority: Optional[str] = None
 
 
+class RAGQueryRequest(BaseModel):
+    query: str
+    top_k: Optional[int] = 3
+
+
 # ============================================================
 # HELPER: SLA ENGINE
 # ============================================================
@@ -72,6 +82,53 @@ def home():
 
 
 # ============================================================
+# DL CIVIC IMAGE CLASSIFICATION (7 CLASSES)
+# ============================================================
+
+@app.post("/predict/image")
+async def predict_image(file: UploadFile = File(...)):
+    """
+    Classifies an uploaded civic issue photo into one of 7 municipal categories:
+    1. road_damage
+    2. garbage
+    3. streetlights
+    4. water_supply
+    5. electricity
+    6. traffic_safety
+    7. sewerage
+
+    Returns predicted class, confidence, suggested department, SLA, and priority.
+    """
+    if classify_image is None:
+        return {"error": "Image classification model not loaded."}
+
+    try:
+        contents = await file.read()
+        res = classify_image(contents)
+        return res
+    except Exception as e:
+        return {"error": f"Image classification failed: {str(e)}"}
+
+
+# ============================================================
+# CIVIC RAG KNOWLEDGE BASE QUERY
+# ============================================================
+
+@app.post("/rag/query")
+def rag_query(request: RAGQueryRequest):
+    """
+    Retrieval-Augmented Generation endpoint providing authoritative answers
+    to citizen queries on municipal bylaws, SLAs, schemes, and rights.
+    """
+    try:
+        from app.rag.rag_service import ask_civic_rag
+        res = ask_civic_rag(request.query, top_k=request.top_k or 3)
+        return res
+    except Exception as e:
+        return {"error": f"RAG query processing failed: {str(e)}"}
+
+
+# ============================================================
 # AI PREDICTION + SAVE COMPLAINT
 # ============================================================
 
@@ -88,65 +145,37 @@ def predict(data: Complaint):
 
 
     # --------------------------------------------------------
-    # Save complaint + AI predictions
+    # Save complaint + AI predictions (with offline resilience)
     # --------------------------------------------------------
 
-    saved_complaint = save_complaint(
+    try:
+        saved_complaint = save_complaint(
+            complaint_text=data.text,
+            sentiment=result.get("sentiment"),
+            feedback_category=result.get("feedback_category"),
+            complaint_reason=result.get("complaint_reason"),
+            department=result.get("department"),
+            harmful=(result.get("harmful_content") == "Harmful"),
+            emergency=result.get("emergency"),
+            priority=result.get("priority"),
+            recommended_schemes=result.get("recommended_schemes"),
+            state=data.state,
+            district=data.district
+        )
 
-        complaint_text=data.text,
+        result["complaint_id"] = saved_complaint.get("id")
+        result["complaint_number"] = saved_complaint.get("complaint_number")
+        result["storage_status"] = "persisted_in_database"
+        result["storage_error"] = None
 
-        sentiment=result.get(
-            "sentiment"
-        ),
-
-        feedback_category=result.get(
-            "feedback_category"
-        ),
-
-        complaint_reason=result.get(
-            "complaint_reason"
-        ),
-
-        department=result.get(
-            "department"
-        ),
-
-        harmful=(
-            result.get(
-                "harmful_content"
-            ) == "Harmful"
-        ),
-
-        emergency=result.get(
-            "emergency"
-        ),
-
-        priority=result.get(
-            "priority"
-        ),
-
-        recommended_schemes=result.get(
-            "recommended_schemes"
-        ),
-
-        state=data.state,
-
-        district=data.district
-    )
-
-
-    # --------------------------------------------------------
-    # Add database information to response
-    # --------------------------------------------------------
-
-    result["complaint_id"] = (
-        saved_complaint["id"]
-    )
-
-    result["complaint_number"] = (
-        saved_complaint["complaint_number"]
-    )
-
+    except Exception as db_err:
+        # Gracefully handle database or network connectivity failures
+        # without crashing the ML prediction response
+        offline_num = f"OFFLINE-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+        result["complaint_id"] = None
+        result["complaint_number"] = offline_num
+        result["storage_status"] = "offline_database_unavailable"
+        result["storage_error"] = str(db_err)
 
     return result
 

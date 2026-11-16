@@ -8,17 +8,18 @@ import requests
 from app.database.database import get_all_complaints
 from app.utils.sla_engine import enrich_complaints_with_sla
 
-import os
+try:
+    from app.frontend.utils.api import get_api_urls
+except ImportError:
+    from utils.api import get_api_urls
 
-PRIMARY_API_URL = os.getenv("API_URL", "http://127.0.0.1:8000").rstrip("/")
-FALLBACK_API_URL = "https://government-ai-api.onrender.com"
 from app.utils.locations import DISTRICT_COORDS
 
 
 @st.cache_data(ttl=15)
 def fetch_complaints():
     """Fetch complaints from API or database with SLA enrichment fallback."""
-    for base_url in [PRIMARY_API_URL, FALLBACK_API_URL]:
+    for base_url in get_api_urls():
         try:
             res = requests.get(f"{base_url}/government/complaints", timeout=2)
             if res.status_code == 200:

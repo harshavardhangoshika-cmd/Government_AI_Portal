@@ -8,15 +8,42 @@ from pathlib import Path
 # FIX IMPORT PATH
 # ============================================================
 
+# Project structure:
+#
+# ML_project/
+# │
+# └── app/
+#     ├── database/
+#     │   ├── database.py
+#     │   └── config.py
+#     │
+#     └── frontend/
+#         ├── citizen_portal.py
+#         └── views/
+#
+# Current file:
+#
+# ML_project/app/frontend/citizen_portal.py
+#
+# parents[0] = frontend
+# parents[1] = app
+# parents[2] = ML_project
+#
+# We need ML_project in sys.path so that:
+#
+# from app.database.database import supabase
+#
+# works correctly.
+
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-APP_DIR = Path(__file__).resolve().parent.parent
+
 FRONTEND_DIR = Path(__file__).resolve().parent
+
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-if str(APP_DIR) not in sys.path:
-    sys.path.insert(0, str(APP_DIR))
 
 if str(FRONTEND_DIR) not in sys.path:
     sys.path.insert(0, str(FRONTEND_DIR))
@@ -29,8 +56,10 @@ if str(FRONTEND_DIR) not in sys.path:
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
+
 if "user_role" not in st.session_state:
     st.session_state.user_role = None
+
 
 if "user_email" not in st.session_state:
     st.session_state.user_email = None
@@ -44,15 +73,19 @@ def get_supabase():
 
     try:
 
-        from database.database import supabase
+        from app.database.database import supabase
 
         return supabase
 
     except Exception as e:
 
-        st.error("Unable to connect to database.")
+        st.error(
+            "Unable to connect to database."
+        )
 
-        st.code(str(e))
+        st.code(
+            str(e)
+        )
 
         return None
 
@@ -61,37 +94,46 @@ def get_supabase():
 # COMPLAINT HISTORY
 # ============================================================
 
-@st.cache_data(ttl=15)
-def fetch_citizen_complaints():
-    supabase = get_supabase()
-    if supabase is None:
-        return []
-    try:
-        response = (
-            supabase
-            .table("complaints")
-            .select("*")
-            .order("created_at", desc=True)
-            .execute()
-        )
-        return response.data or []
-    except Exception:
-        from app.database.database import get_all_complaints
-        return get_all_complaints() or []
-
-
 def show_complaint_history():
 
     st.markdown("---")
 
-    st.subheader("📋 My Complaint History")
+    st.subheader(
+        "📋 My Complaint History"
+    )
 
     st.caption(
         "View all complaints submitted by your account."
     )
 
+    # --------------------------------------------------------
+    # DATABASE
+    # --------------------------------------------------------
+
+    supabase = get_supabase()
+
+    if supabase is None:
+        return
+
     try:
-        complaints = fetch_citizen_complaints()
+
+        # ----------------------------------------------------
+        # GET ALL COMPLAINTS
+        # ----------------------------------------------------
+
+        response = (
+            supabase
+            .table("complaints")
+            .select("*")
+            .order(
+                "created_at",
+                desc=True
+            )
+            .execute()
+        )
+
+        complaints = response.data or []
+
 
         # ----------------------------------------------------
         # NO COMPLAINTS
@@ -105,11 +147,13 @@ def show_complaint_history():
 
             return
 
+
         # ----------------------------------------------------
         # CREATE HISTORY
         # ----------------------------------------------------
 
         history = []
+
 
         for complaint in complaints:
 
@@ -123,6 +167,7 @@ def show_complaint_history():
 
             date = "-"
             time = "-"
+
 
             if created_at:
 
@@ -144,6 +189,7 @@ def show_complaint_history():
 
                     pass
 
+
             # ------------------------------------------------
             # COMPLAINT ID
             # ------------------------------------------------
@@ -153,6 +199,7 @@ def show_complaint_history():
                 or complaint.get("complaint_id")
                 or "-"
             )
+
 
             # ------------------------------------------------
             # COMPLAINT TEXT
@@ -167,6 +214,7 @@ def show_complaint_history():
                 or "-"
             )
 
+
             # ------------------------------------------------
             # DEPARTMENT
             # ------------------------------------------------
@@ -176,6 +224,7 @@ def show_complaint_history():
                 or "-"
             )
 
+
             # ------------------------------------------------
             # STATUS
             # ------------------------------------------------
@@ -184,6 +233,7 @@ def show_complaint_history():
                 complaint.get("status")
                 or "-"
             )
+
 
             # ------------------------------------------------
             # ADD ROW
@@ -200,11 +250,15 @@ def show_complaint_history():
                 }
             )
 
+
         # ----------------------------------------------------
         # DATAFRAME
         # ----------------------------------------------------
 
-        df = pd.DataFrame(history)
+        df = pd.DataFrame(
+            history
+        )
+
 
         # ----------------------------------------------------
         # DISPLAY TABLE
@@ -217,13 +271,16 @@ def show_complaint_history():
             height=500
         )
 
+
     except Exception as e:
 
         st.error(
             "Unable to load complaint history."
         )
 
-        st.code(str(e))
+        st.code(
+            str(e)
+        )
 
 
 # ============================================================
@@ -233,16 +290,17 @@ def show_complaint_history():
 def show_citizen_portal():
 
     # ========================================================
-    # SIDEBAR HEADER
+    # SIDEBAR
     # ========================================================
 
     st.sidebar.title(
-        "🏛️ Citizen Portal"
+        "🏛 Citizen Portal"
     )
 
     st.sidebar.caption(
         "Citizen Services"
     )
+
 
     # ========================================================
     # USER
@@ -253,15 +311,19 @@ def show_citizen_portal():
         "citizen@gov.in"
     )
 
+
     st.sidebar.write(
         f"👤 {user_email}"
     )
+
 
     st.sidebar.caption(
         "Citizen"
     )
 
+
     st.sidebar.divider()
+
 
     # ========================================================
     # NAVIGATION
@@ -272,13 +334,13 @@ def show_citizen_portal():
         [
             "🏠 Home",
             "📝 Submit Complaint",
-            "🔎 Track Complaint",
+            "🔍 Track Complaint",
             "🤖 AI Help",
             "📞 Contact Support",
             "ℹ️ About"
-        ],
-        key="citizen_navigation"
+        ]
     )
+
 
     # ========================================================
     # HOME
@@ -290,6 +352,7 @@ def show_citizen_portal():
 
         home.show()
 
+
     # ========================================================
     # SUBMIT COMPLAINT
     # ========================================================
@@ -300,11 +363,12 @@ def show_citizen_portal():
 
         submit.show()
 
+
     # ========================================================
     # TRACK COMPLAINT
     # ========================================================
 
-    elif page == "🔎 Track Complaint":
+    elif page == "🔍 Track Complaint":
 
         from views import track
 
@@ -312,19 +376,17 @@ def show_citizen_portal():
 
         show_complaint_history()
 
+
     # ========================================================
     # AI HELP
     # ========================================================
 
     elif page == "🤖 AI Help":
 
-        st.title(
-            "🤖 AI Help"
-        )
+        from views import ai_help
 
-        st.write(
-            "Coming Soon..."
-        )
+        ai_help.show()
+
 
     # ========================================================
     # CONTACT SUPPORT
@@ -340,6 +402,7 @@ def show_citizen_portal():
             "Coming Soon..."
         )
 
+
     # ========================================================
     # ABOUT
     # ========================================================
@@ -350,17 +413,26 @@ def show_citizen_portal():
 
         about.show()
 
+
     # ========================================================
-    # LOGOUT AT BOTTOM OF SIDEBAR
+    # LOGOUT
     # ========================================================
 
     st.sidebar.divider()
+
 
     if st.sidebar.button(
         "🚪 Logout",
         use_container_width=True
     ):
-        logout()
+
+        st.session_state.logged_in = False
+
+        st.session_state.user_role = None
+
+        st.session_state.user_email = None
+
+        st.rerun()
 
 
 # ============================================================
@@ -369,49 +441,21 @@ def show_citizen_portal():
 
 if __name__ == "__main__":
 
-    if not st.session_state.get(
-        "logged_in",
-        False
-    ):
+    # Default values when this file is run directly
 
-        st.warning(
-            "Please login to access the Citizen Portal."
-        )
+    if "logged_in" not in st.session_state:
 
-        st.stop()
+        st.session_state.logged_in = True
 
-    if st.session_state.get(
-        "user_role"
-    ) != "Citizen":
 
-        st.error(
-            "Access denied. Citizen account required."
-        )
+    if "user_role" not in st.session_state:
 
-        st.stop()
+        st.session_state.user_role = "Citizen"
+
+
+    if "user_email" not in st.session_state:
+
+        st.session_state.user_email = "citizen@gov.in"
+
 
     show_citizen_portal()
-
-# ============================================================
-# LOGOUT
-# ============================================================
-
-def logout():
-
-    st.session_state.logged_in = False
-    st.session_state.user_role = None
-    st.session_state.user_email = None
-
-    # Clear login-related session values if they exist
-    for key in [
-        "login_email",
-        "login_password",
-        "user_name"
-    ]:
-        if key in st.session_state:
-            del st.session_state[key]
-
-    st.rerun()
-
-
-# ============================================================

@@ -1,0 +1,129 @@
+{
+  "total_images": 1512,
+  "train_split": 1216,
+  "val_split": 320,
+  "final_train_accuracy": 0.9495867490768433,
+  "final_val_accuracy": 0.9139072895050049,
+  "classification_report": {
+    "electricity": {
+      "precision": 1.0,
+      "recall": 0.9285714285714286,
+      "f1-score": 0.9629629629629629,
+      "support": 42.0
+    },
+    "garbage": {
+      "precision": 1.0,
+      "recall": 0.8888888888888888,
+      "f1-score": 0.9411764705882353,
+      "support": 36.0
+    },
+    "road_damage": {
+      "precision": 0.9565217391304348,
+      "recall": 0.9777777777777777,
+      "f1-score": 0.967032967032967,
+      "support": 45.0
+    },
+    "sewerage": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 40.0
+    },
+    "streetlights": {
+      "precision": 0.8636363636363636,
+      "recall": 0.8837209302325582,
+      "f1-score": 0.8735632183908046,
+      "support": 43.0
+    },
+    "traffic_safety": {
+      "precision": 0.9574468085106383,
+      "recall": 0.9183673469387755,
+      "f1-score": 0.9375,
+      "support": 49.0
+    },
+    "water_supply": {
+      "precision": 0.7777777777777778,
+      "recall": 0.8936170212765957,
+      "f1-score": 0.8316831683168316,
+      "support": 47.0
+    },
+    "accuracy": 0.9271523178807947,
+    "macro avg": {
+      "precision": 0.9364832412936019,
+      "recall": 0.927277627669432,
+      "f1-score": 0.9305598267559717,
+      "support": 302.0
+    },
+    "weighted avg": {
+      "precision": 0.9326168578470531,
+      "recall": 0.9271523178807947,
+      "f1-score": 0.9285864510059606,
+      "support": 302.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      39,
+      0,
+      0,
+      0,
+      1,
+      0,
+      2
+    ],
+    [
+      0,
+      32,
+      1,
+      0,
+      0,
+      1,
+      2
+    ],
+    [
+      0,
+      0,
+      44,
+      0,
+      0,
+      0,
+      1
+    ],
+    [
+      0,
+      0,
+      0,
+      40,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      38,
+      0,
+      5
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      2,
+      45,
+      2
+    ],
+    [
+      0,
+      0,
+      1,
+      0,
+      3,
+      1,
+      42
+    ]
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "0": "electricity",
+  "1": "garbage",
+  "2": "road_damage",
+  "3": "sewerage",
+  "4": "streetlights",
+  "5": "traffic_safety",
+  "6": "water_supply"
+}

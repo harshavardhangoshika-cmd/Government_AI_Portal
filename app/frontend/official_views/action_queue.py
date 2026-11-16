@@ -8,14 +8,16 @@ from app.utils.sla_engine import enrich_complaints_with_sla
 
 import os
 
-PRIMARY_API_URL = os.getenv("API_URL", "http://127.0.0.1:8000").rstrip("/")
-FALLBACK_API_URL = "https://government-ai-api.onrender.com"
+try:
+    from app.frontend.utils.api import get_api_urls
+except ImportError:
+    from utils.api import get_api_urls
 
 
 @st.cache_data(ttl=15)
 def fetch_complaints():
     """Fetch enriched complaints from FastAPI or fallback to database directly."""
-    for base_url in [PRIMARY_API_URL, FALLBACK_API_URL]:
+    for base_url in get_api_urls():
         try:
             res = requests.get(f"{base_url}/government/complaints", timeout=2)
             if res.status_code == 200:
@@ -32,23 +34,24 @@ def fetch_complaints():
 
 def save_status_update(complaint_number, status, officer, remarks, department=None, priority=None):
     """Update complaint status, department, priority, officer, and remarks via API or direct DB fallback."""
-    try:
-        res = requests.post(
-            f"{API_URL}/government/update-status",
-            json={
-                "complaint_number": complaint_number,
-                "status": status,
-                "assigned_officer": officer,
-                "officer_remarks": remarks,
-                "department": department,
-                "priority": priority
-            },
-            timeout=5
-        )
-        if res.status_code == 200:
-            return True, "Updated successfully via API!"
-    except Exception:
-        pass
+    for base_url in get_api_urls():
+        try:
+            res = requests.post(
+                f"{base_url}/government/update-status",
+                json={
+                    "complaint_number": complaint_number,
+                    "status": status,
+                    "assigned_officer": officer,
+                    "officer_remarks": remarks,
+                    "department": department,
+                    "priority": priority
+                },
+                timeout=5
+            )
+            if res.status_code == 200:
+                return True, "Updated successfully via API!"
+        except Exception:
+            pass
 
     # Fallback DB execution
     res = db_update_status(
