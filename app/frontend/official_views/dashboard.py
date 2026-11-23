@@ -1,7 +1,9 @@
+import logging
 import streamlit as st
 import requests
 import pandas as pd
 
+logger = logging.getLogger(__name__)
 
 # ============================================================
 # FASTAPI BACKEND & DATA FETCHING
@@ -13,12 +15,21 @@ except ImportError:
     from utils.api import api_get
 
 try:
-    from app.database.diagnostics import run_supabase_diagnostic
+    from app.database.connection_test import test_supabase_connection
 except ImportError:
     try:
-        from database.diagnostics import run_supabase_diagnostic
+        from database.connection_test import test_supabase_connection
     except ImportError:
-        run_supabase_diagnostic = None
+        test_supabase_connection = None
+
+try:
+    from app.database.database import fetch_complaints_state, get_client
+except ImportError:
+    try:
+        from database.database import fetch_complaints_state, get_client
+    except ImportError:
+        fetch_complaints_state = None
+        get_client = None
 
 
 # ============================================================
@@ -26,68 +37,201 @@ except ImportError:
 # ============================================================
 
 def render_supabase_diagnostic_card(diag=None):
-    """Safely render Supabase connection diagnostics without exposing credentials."""
-    if diag is None and run_supabase_diagnostic:
-        diag = run_supabase_diagnostic()
-    if not diag:
-        st.warning("Diagnostic engine unavailable.")
-        return
+    """Safely render comprehensive 6-step Supabase connection diagnostics without exposing credentials."""
+    if diag is None:
+        if test_supabase_connection:
+            try:
+                diag = test_supabase_connection()
+            except Exception as e:
+                logger.exception("Diagnostic execution failed")
+                st.error(f"❌ Diagnostic execution error: {e}")
+                return
+        else:
+            st.error("❌ Diagnostic engine unavailable (Module import failure).")
+            return
 
     is_healthy = (diag.get("status") == "HEALTHY")
-    
+    classification = diag.get("classification", "UNKNOWN")
+    guidance = diag.get("actionable_guidance", "")
+    steps = diag.get("steps", {})
+
     if is_healthy:
-        st.success(f"✅ **Supabase Database Connected & Operational** — {diag.get('complaint_count', 0)} records accessible in `complaints` table.")
+        st.success(
+            f"✅ **Supabase Cloud Database Connected & Operational** — "
+            f"Verified in {diag.get('latency_ms', 0)}ms."
+        )
     else:
-        st.error(f"❌ **Supabase Connection Issue: {diag.get('classification', 'ERROR')}**")
-        if diag.get("actionable_guidance"):
-            st.info(f"💡 **Recommended Action:** {diag['actionable_guidance']}")
+        st.error(
+            f"❌ **Supabase Connection Issue: {classification}** "
+            f"(Failed at Step {diag.get('failed_step', '?')})"
+        )
+        if guidance:
+            st.info(f"💡 **Recommended Action:** {guidance}")
 
     col_a, col_b = st.columns(2)
     with col_a:
-        st.markdown(f"**URL Configured:** {'✅ Yes' if diag.get('url_present') else '❌ Missing'}")
+        st.markdown(f"**URL Configured:** {'✅ Yes' if diag.get('url_masked') != 'Not Configured' else '❌ Missing'}")
+        st.markdown(f"**Masked URL:** `{diag.get('url_masked', 'Not Configured')}`")
         st.markdown(f"**Configured Hostname:** `{diag.get('hostname_parsed', 'None')}`")
         st.markdown(f"**Expected Hostname:** `{diag.get('hostname_expected', 'Unknown')}`")
-        match_str = "✅ Matches Project" if diag.get("hostname_matches_expected") else "❌ MISMATCH (Check secrets)"
-        st.markdown(f"**Hostname Match:** {match_str}")
     with col_b:
         key_meta = diag.get("key_meta", {})
         st.markdown(f"**Key Configured:** {'✅ Yes' if key_meta.get('present') else '❌ Missing'}")
         st.markdown(f"**Key Type:** `{key_meta.get('type', 'None')}` ({key_meta.get('length', 0)} chars)")
-        dns_status = f"✅ Resolved ({', '.join(diag.get('dns_ipv4_ips', []))})" if diag.get("dns_resolved") else f"❌ Failed ({diag.get('dns_error', 'N/A')})"
+        st.markdown(f"**Key Preview:** `{key_meta.get('preview', 'None')}`")
+        dns_ips = diag.get("dns_ips", [])
+        dns_status = f"✅ Resolved ({', '.join(dns_ips)})" if dns_ips else "❌ Unresolved"
         st.markdown(f"**DNS Resolution:** {dns_status}")
-        https_status = f"✅ Reachable (HTTP {diag.get('https_status')})" if diag.get("https_ok") else f"❌ {diag.get('https_error', 'Unavailable')}"
-        st.markdown(f"**HTTPS Reachability:** {https_status}")
 
-    st.markdown(f"**Read Query Test (`complaints` table):** {'✅ Passed' if diag.get('query_ok') else '❌ Failed'}")
-    if diag.get("error_message") and not is_healthy:
-        st.code(f"Diagnostic Details: {diag['error_message']}", language="text")
+    st.markdown("---")
+    st.markdown("##### 🔍 6-Step Verification Protocol")
+
+    step_labels = [
+        ("step1_secrets", "Step 1: Secrets Presence (st.secrets / os.environ)"),
+        ("step2_url_validation", "Step 2: URL & Hostname Validation"),
+        ("step3_dns_resolution", "Step 3: DNS Resolution (IPv4 socket.getaddrinfo)"),
+        ("step4_https_probe", "Step 4: HTTPS Probe (/rest/v1/complaints)"),
+        ("step5_client_init", "Step 5: Supabase Python Client Init"),
+        ("step6_read_query", "Step 6: Read-only Query (complaints table)")
+    ]
+
+    for step_key, step_title in step_labels:
+        step_info = steps.get(step_key, {})
+        passed = step_info.get("passed", False)
+        details = step_info.get("details", "Not evaluated")
+        icon = "✅" if passed else "❌"
+        st.markdown(f"{icon} **{step_title}**: {details}")
 
     if st.button("🔄 Retry Connection Check", key="retry_official_diag_btn"):
         try:
-            from app.database.database import get_client
-            get_client(force_refresh=True)
+            if get_client:
+                get_client(force_refresh=True)
         except Exception:
             pass
         st.cache_data.clear()
         st.rerun()
+
+
+# ============================================================
+# METRICS CALCULATION (ROBUST LOCAL FALLBACK)
+# ============================================================
+
+def _calculate_dashboard_metrics(complaints: list) -> dict:
+    """Calculate all dashboard statistics from raw complaint records."""
+    if not complaints:
+        return {
+            "total_complaints": 0,
+            "pending": 0,
+            "resolved": 0,
+            "emergency": 0,
+            "submitted": 0,
+            "assigned": 0,
+            "under_review": 0,
+            "field_inspection": 0,
+            "priority": {"low": 0, "medium": 0, "high": 0, "urgent": 0},
+            "departments": {}
+        }
+
+    df = pd.DataFrame(complaints)
+    total = len(df)
+
+    # Status counts
+    if "status" in df.columns:
+        status_series = df["status"].fillna("").astype(str).str.strip().str.lower()
+    else:
+        status_series = pd.Series([""] * total)
+
+    submitted = int((status_series == "submitted").sum())
+    assigned = int((status_series == "assigned").sum())
+    under_review = int((status_series == "under review").sum())
+    field_inspection = int((status_series == "field inspection").sum())
+    resolved = int((status_series == "resolved").sum())
+    pending = total - resolved
+
+    # Emergency counts
+    emergency = 0
+    if "emergency" in df.columns:
+        emergency_vals = df["emergency"].astype(str).str.strip().str.lower()
+        emergency = int(emergency_vals.isin(["1", "true", "yes", "emergency"]).sum())
+
+    # Priority counts
+    priority = {"low": 0, "medium": 0, "high": 0, "urgent": 0}
+    if "priority" in df.columns:
+        p_vals = df["priority"].fillna("").astype(str).str.strip().str.lower()
+        priority["low"] = int((p_vals == "low").sum())
+        priority["medium"] = int((p_vals == "medium").sum())
+        priority["high"] = int((p_vals == "high").sum())
+        priority["urgent"] = int((p_vals.isin(["urgent", "critical"])).sum())
+
+    # Departments counts
+    departments = {}
+    if "department" in df.columns:
+        d_vals = df["department"].fillna("").astype(str).str.strip()
+        d_vals = d_vals[d_vals != ""]
+        dept_counts = d_vals.value_counts().to_dict()
+        departments = {str(k): int(v) for k, v in dept_counts.items()}
+
+    return {
+        "total_complaints": total,
+        "pending": pending,
+        "resolved": resolved,
+        "emergency": emergency,
+        "submitted": submitted,
+        "assigned": assigned,
+        "under_review": under_review,
+        "field_inspection": field_inspection,
+        "priority": priority,
+        "departments": departments
+    }
+
 
 # ============================================================
 # GET DASHBOARD DATA
 # ============================================================
 
 @st.cache_data(ttl=30)
-def get_dashboard_data():
-    """Fetch government dashboard statistics from FastAPI or local analytics fallback."""
+def get_dashboard_data() -> dict:
+    """Fetch government dashboard statistics from FastAPI or Supabase direct fallback."""
+    # 1. Try FastAPI backend endpoint
     res = api_get("/government/dashboard", timeout=3)
     if res and isinstance(res, dict) and "total_complaints" in res:
-        return res
+        return {"status": "SUCCESS", "data": res}
 
-    # Direct local calculation fallback
+    # 2. Direct Supabase query via fetch_complaints_state
+    if fetch_complaints_state:
+        try:
+            state = fetch_complaints_state()
+            if state.get("status") == "SUCCESS":
+                summary = _calculate_dashboard_metrics(state.get("data", []))
+                return {"status": "SUCCESS", "data": summary}
+            else:
+                return {
+                    "status": "ERROR",
+                    "error_type": state.get("error_type", "DATABASE_ERROR"),
+                    "error_message": state.get("error_message", "Failed to retrieve complaints from Supabase")
+                }
+        except Exception as e:
+            logger.exception("Direct fetch_complaints_state failed")
+            return {
+                "status": "ERROR",
+                "error_type": "FETCH_EXCEPTION",
+                "error_message": str(e)
+            }
+
+    # 3. Fallback to government_analytics if available
     try:
         from app.backend.government_analytics import get_dashboard_summary
-        return get_dashboard_summary()
-    except Exception:
-        return None
+        summary = get_dashboard_summary()
+        if summary:
+            return {"status": "SUCCESS", "data": summary}
+    except Exception as e:
+        logger.warning(f"government_analytics fallback failed: {e}")
+
+    return {
+        "status": "ERROR",
+        "error_type": "NOT_AVAILABLE",
+        "error_message": "Both FastAPI backend and direct Supabase database are unreachable."
+    }
 
 
 # ============================================================
@@ -95,13 +239,29 @@ def get_dashboard_data():
 # ============================================================
 
 @st.cache_data(ttl=30)
-def get_trend_data():
-    """Fetch complaint trend information from FastAPI or local analytics fallback."""
+def get_trend_data() -> dict:
+    """Fetch complaint trend information from FastAPI or direct database fallback."""
+    # 1. Try FastAPI backend
     res = api_get("/government/trends", timeout=3)
     if res and isinstance(res, dict) and "data" in res:
         return res
 
-    # Direct local calculation fallback
+    # 2. Direct calculation from Supabase
+    if fetch_complaints_state:
+        try:
+            state = fetch_complaints_state()
+            if state.get("status") == "SUCCESS" and state.get("data"):
+                df = pd.DataFrame(state["data"])
+                if "created_at" in df.columns:
+                    df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce")
+                    df = df.dropna(subset=["created_at"])
+                    df["date"] = df["created_at"].dt.strftime("%Y-%m-%d")
+                    daily_counts = df.groupby("date").size().reset_index(name="complaints").sort_values("date")
+                    return {"data": daily_counts.to_dict(orient="records")}
+        except Exception as e:
+            logger.warning(f"Direct trend calculation failed: {e}")
+
+    # 3. Legacy fallback
     try:
         from app.backend.government_analytics import get_complaint_history
         history = get_complaint_history()
@@ -110,6 +270,7 @@ def get_trend_data():
             return {"data": history.to_dict(orient="records")}
     except Exception:
         pass
+
     return None
 
 
@@ -132,23 +293,24 @@ def show():
         "priorities, emergencies, and overall complaint activity."
     )
 
-
     # ========================================================
     # GET DASHBOARD DATA
     # ========================================================
 
-    dashboard = get_dashboard_data()
+    result = get_dashboard_data()
 
-    if dashboard is None:
-
-        st.error("⚠️ **Analytics Data Unavailable**")
+    if result.get("status") == "ERROR":
+        st.error(f"⚠️ **Analytics Data Unavailable: {result.get('error_type', 'Connection Error')}**")
         st.write(
-            "The official dashboard could not retrieve complaint analytics. "
-            "A safe automated diagnostic of your database configuration was executed below:"
+            "The official dashboard could not retrieve complaint records from Supabase. "
+            "Below is a live 6-step diagnostic of your database configuration and cloud connectivity:"
         )
+        if result.get("error_message"):
+            st.code(f"Error Details: {result['error_message']}", language="text")
         render_supabase_diagnostic_card()
-
         return
+
+    dashboard = result.get("data", {})
 
 
     # ========================================================
