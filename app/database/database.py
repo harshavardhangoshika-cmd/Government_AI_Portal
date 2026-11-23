@@ -12,19 +12,21 @@ from app.database.config import get_credentials
 supabase = None
 last_db_error = None
 
-def get_client():
+def get_client(force_refresh=False):
     """
     Returns an active Supabase client. Lazily initializes if
     secrets become available after initial module import.
+    Pass force_refresh=True to re-read credentials and recreate client.
     """
     global supabase, last_db_error
-    if supabase is not None:
+    if supabase is not None and not force_refresh:
         return supabase
 
     url, key = get_credentials()
     if url and key:
         try:
             supabase = create_client(url, key)
+            last_db_error = None
             print("[OK] Supabase Connected Successfully!")
         except Exception as e:
             last_db_error = str(e)

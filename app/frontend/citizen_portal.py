@@ -68,25 +68,76 @@ if "user_email" not in st.session_state:
 # ============================================================
 # DATABASE
 # ============================================================
+# DATABASE & DIAGNOSTICS
+# ============================================================
+
+try:
+    from app.database.database import get_client, get_all_complaints
+except ImportError:
+    from database.database import get_client, get_all_complaints
+
+try:
+    from app.database.diagnostics import run_supabase_diagnostic
+except ImportError:
+    try:
+        from database.diagnostics import run_supabase_diagnostic
+    except ImportError:
+        run_supabase_diagnostic = None
+
+
+def render_supabase_diagnostic_panel(diag=None):
+    """Safely render comprehensive Supabase connection diagnostics without exposing credentials."""
+    if diag is None and run_supabase_diagnostic:
+        diag = run_supabase_diagnostic()
+    if not diag:
+        st.warning("Database diagnostic engine unavailable.")
+        return
+
+    is_healthy = (diag.get("status") == "HEALTHY")
+    
+    if is_healthy:
+        st.success(f"✅ **Supabase Database Connected & Operational** — {diag.get('complaint_count', 0)} live records accessible.")
+    else:
+        st.error(f"❌ **Supabase Connection Issue: {diag.get('classification', 'ERROR')}**")
+        if diag.get("actionable_guidance"):
+            st.info(f"💡 **Action Required:** {diag['actionable_guidance']}")
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown(f"**URL Configured:** {'✅ Yes' if diag.get('url_present') else '❌ Missing'}")
+        st.markdown(f"**Configured Hostname:** `{diag.get('hostname_parsed', 'None')}`")
+        st.markdown(f"**Expected Hostname:** `{diag.get('hostname_expected', 'Unknown')}`")
+        match_str = "✅ Matches Project" if diag.get("hostname_matches_expected") else "❌ MISMATCH (Check secrets)"
+        st.markdown(f"**Hostname Match:** {match_str}")
+    with col_b:
+        key_meta = diag.get("key_meta", {})
+        st.markdown(f"**Key Configured:** {'✅ Yes' if key_meta.get('present') else '❌ Missing'}")
+        st.markdown(f"**Key Type:** `{key_meta.get('type', 'None')}` ({key_meta.get('length', 0)} chars)")
+        dns_status = f"✅ Resolved ({', '.join(diag.get('dns_ipv4_ips', []))})" if diag.get("dns_resolved") else f"❌ Failed ({diag.get('dns_error', 'N/A')})"
+        st.markdown(f"**DNS Resolution:** {dns_status}")
+        https_status = f"✅ Reachable (HTTP {diag.get('https_status')})" if diag.get("https_ok") else f"❌ {diag.get('https_error', 'Unavailable')}"
+        st.markdown(f"**HTTPS Reachability:** {https_status}")
+
+    st.markdown(f"**Read Query Test (`complaints` table):** {'✅ Passed' if diag.get('query_ok') else '❌ Failed'}")
+    if diag.get("error_message") and not is_healthy:
+        st.code(f"Diagnostic Trace: {diag['error_message']}", language="text")
+
+    if st.button("🔄 Retry Connection Check", key="retry_db_diag_btn"):
+        try:
+            from app.database.database import get_client
+            get_client(force_refresh=True)
+        except Exception:
+            pass
+        st.cache_data.clear()
+        st.rerun()
+
 
 def get_supabase():
-
     try:
-
-        from app.database.database import get_client
-
         return get_client()
-
     except Exception as e:
-
-        st.error(
-            "Unable to connect to database."
-        )
-
-        st.code(
-            str(e)
-        )
-
+        st.error("Unable to connect to database.")
+        st.code(str(e))
         return None
 
 
@@ -107,47 +158,44 @@ def show_complaint_history():
     )
 
     # --------------------------------------------------------
-    # DATABASE
+    # DATABASE FETCH (CENTRALIZED)
     # --------------------------------------------------------
 
-    supabase = get_supabase()
-
-    if supabase is None:
-        return
-
     try:
+        from app.database.database import get_all_complaints, last_db_error
+        complaints = get_all_complaints()
+    except Exception as e:
+        complaints = []
+        last_db_error = str(e)
 
-        # ----------------------------------------------------
-        # GET ALL COMPLAINTS
-        # ----------------------------------------------------
+    # If complaints could not be fetched due to database error
+    if not complaints:
+        try:
+            from app.database.database import last_db_error
+        except Exception:
+            last_db_error = None
 
-        response = (
-            supabase
-            .table("complaints")
-            .select("*")
-            .order(
-                "created_at",
-                desc=True
+        if last_db_error:
+            st.error("⚠️ **Unable to Load Complaint History: Database Connection Issue**")
+            st.write(
+                "The application was unable to retrieve your complaint records from Supabase. "
+                "Below is a live diagnostic of your database configuration and cloud connectivity:"
             )
-            .execute()
-        )
+            render_supabase_diagnostic_panel()
+            return
+        else:
+            # Let's run diagnostic to verify if truly empty or database unreachable
+            if run_supabase_diagnostic:
+                diag = run_supabase_diagnostic()
+                if diag.get("status") != "HEALTHY":
+                    st.error(f"⚠️ **Database Connection Issue: {diag.get('classification', 'ERROR')}**")
+                    render_supabase_diagnostic_panel(diag)
+                    return
 
-        complaints = response.data or []
-
-
-        # ----------------------------------------------------
-        # NO COMPLAINTS
-        # ----------------------------------------------------
-
-        if not complaints:
-
-            st.info(
-                "You have not submitted any complaints yet."
-            )
-
+            st.info("You have not submitted any complaints yet.")
             return
 
-
+    try:
         # ----------------------------------------------------
         # CREATE HISTORY
         # ----------------------------------------------------
@@ -271,16 +319,19 @@ def show_complaint_history():
             height=500
         )
 
+        with st.expander("🔍 Live Supabase & Database Diagnostics", expanded=False):
+            render_supabase_diagnostic_panel()
 
     except Exception as e:
 
         st.error(
-            "Unable to load complaint history."
+            "Unable to load complaint history due to an unexpected processing error."
         )
 
         st.code(
             str(e)
         )
+        render_supabase_diagnostic_panel()
 
 
 # ============================================================
@@ -415,11 +466,12 @@ def show_citizen_portal():
 
 
     # ========================================================
-    # LOGOUT
+    # LOGOUT & DIAGNOSTICS
     # ========================================================
 
     st.sidebar.divider()
-
+    with st.sidebar.expander("🔍 Database Status", expanded=False):
+        render_supabase_diagnostic_panel()
 
     if st.sidebar.button(
         "🚪 Logout",

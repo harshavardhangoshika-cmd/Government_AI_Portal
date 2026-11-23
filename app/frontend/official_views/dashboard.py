@@ -45,19 +45,31 @@ def render_supabase_diagnostic_card(diag=None):
     col_a, col_b = st.columns(2)
     with col_a:
         st.markdown(f"**URL Configured:** {'✅ Yes' if diag.get('url_present') else '❌ Missing'}")
-        st.markdown(f"**Host / Endpoint:** `{diag.get('url_masked', 'Not configured')}`")
-        dns_status = f"✅ Resolved ({diag.get('dns_ip')})" if diag.get("dns_resolved") else f"❌ Failed ({diag.get('dns_error', 'N/A')})"
-        st.markdown(f"**DNS Resolution:** {dns_status}")
+        st.markdown(f"**Configured Hostname:** `{diag.get('hostname_parsed', 'None')}`")
+        st.markdown(f"**Expected Hostname:** `{diag.get('hostname_expected', 'Unknown')}`")
+        match_str = "✅ Matches Project" if diag.get("hostname_matches_expected") else "❌ MISMATCH (Check secrets)"
+        st.markdown(f"**Hostname Match:** {match_str}")
     with col_b:
         key_meta = diag.get("key_meta", {})
         st.markdown(f"**Key Configured:** {'✅ Yes' if key_meta.get('present') else '❌ Missing'}")
         st.markdown(f"**Key Type:** `{key_meta.get('type', 'None')}` ({key_meta.get('length', 0)} chars)")
+        dns_status = f"✅ Resolved ({', '.join(diag.get('dns_ipv4_ips', []))})" if diag.get("dns_resolved") else f"❌ Failed ({diag.get('dns_error', 'N/A')})"
+        st.markdown(f"**DNS Resolution:** {dns_status}")
         https_status = f"✅ Reachable (HTTP {diag.get('https_status')})" if diag.get("https_ok") else f"❌ {diag.get('https_error', 'Unavailable')}"
         st.markdown(f"**HTTPS Reachability:** {https_status}")
 
     st.markdown(f"**Read Query Test (`complaints` table):** {'✅ Passed' if diag.get('query_ok') else '❌ Failed'}")
     if diag.get("error_message") and not is_healthy:
         st.code(f"Diagnostic Details: {diag['error_message']}", language="text")
+
+    if st.button("🔄 Retry Connection Check", key="retry_official_diag_btn"):
+        try:
+            from app.database.database import get_client
+            get_client(force_refresh=True)
+        except Exception:
+            pass
+        st.cache_data.clear()
+        st.rerun()
 
 # ============================================================
 # GET DASHBOARD DATA

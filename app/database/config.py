@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 import os
+import urllib.parse
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -10,14 +11,50 @@ if ENV_FILE.exists():
 else:
     load_dotenv()
 
+# The canonical production Supabase project hostname & default URL
+PROJECT_EXPECTED_HOST = "uusnnqbutovbnjqzyhmx.supabase.co"
+PROJECT_DEFAULT_URL = f"https://{PROJECT_EXPECTED_HOST}"
 
-def _sanitize_secret(val):
-    """Strip whitespace and accidental enclosing quotes from secrets."""
+
+def _sanitize_url(val):
+    """
+    Ultra-resilient URL sanitizer:
+    - Strips whitespace, straight/curly quotes, backticks, angle brackets.
+    - Guarantees 'https://' scheme.
+    - Removes trailing slashes.
+    - Detects unconfigured example placeholders ('your-project-id.supabase.co')
+      and safely auto-resolves to the project canonical URL.
+    """
     if val is None:
         return None
     val = str(val).strip()
-    # Strip accidental single or double quotes entered in TOML or env
-    val = val.strip("\"'").strip()
+    # Strip accidental straight/curly quotes, backticks, brackets
+    val = val.strip("\"'“”`<> ").strip()
+    if not val:
+        return None
+
+    # Detect example placeholder
+    if "your-project-id" in val or "your-project" in val or "your_project" in val:
+        print(f"[WARN] Placeholder Supabase URL '{val}' detected in secrets. Auto-resolving to project URL: {PROJECT_DEFAULT_URL}")
+        return PROJECT_DEFAULT_URL
+
+    # Ensure valid scheme
+    if not val.startswith("http://") and not val.startswith("https://"):
+        val = f"https://{val}"
+    elif val.startswith("http://"):
+        val = "https://" + val[7:]
+
+    val = val.rstrip("/")
+    return val
+
+
+def _sanitize_key(val):
+    """Strip whitespace and accidental enclosing quotes from keys."""
+    if val is None:
+        return None
+    val = str(val).strip()
+    # Strip accidental straight/curly quotes, backticks, brackets
+    val = val.strip("\"'“”`<> ").strip()
     return val if val else None
 
 
@@ -26,6 +63,7 @@ def get_credentials():
     Ultra-resilient credentials loader for Supabase.
     Checks environment variables and Streamlit Cloud secrets in all common casing
     and table formats (e.g. SUPABASE_URL, supabase_url, [supabase] section).
+    Falls back safely to the project canonical URL if URL is missing or set to template placeholder.
     """
     url = None
     key = None
@@ -37,13 +75,13 @@ def get_credentials():
             # Check direct keys (case variations)
             for k in ("SUPABASE_URL", "supabase_url", "SUPABASE_PROJECT_URL", "NEXT_PUBLIC_SUPABASE_URL"):
                 if k in st.secrets:
-                    url = _sanitize_secret(st.secrets[k])
+                    url = _sanitize_url(st.secrets[k])
                     if url:
                         break
 
             for k in ("SUPABASE_KEY", "supabase_key", "SUPABASE_ANON_KEY", "supabase_anon_key", "SUPABASE_API_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY"):
                 if k in st.secrets:
-                    key = _sanitize_secret(st.secrets[k])
+                    key = _sanitize_key(st.secrets[k])
                     if key:
                         break
 
@@ -55,13 +93,13 @@ def get_credentials():
                         if not url:
                             for uk in ("url", "URL", "SUPABASE_URL", "supabase_url"):
                                 if uk in sub:
-                                    url = _sanitize_secret(sub[uk])
+                                    url = _sanitize_url(sub[uk])
                                     if url:
                                         break
                         if not key:
                             for kk in ("key", "KEY", "anon_key", "SUPABASE_KEY", "supabase_key"):
                                 if kk in sub:
-                                    key = _sanitize_secret(sub[kk])
+                                    key = _sanitize_key(sub[kk])
                                     if key:
                                         break
     except Exception:
@@ -72,7 +110,7 @@ def get_credentials():
         for env_k in ("SUPABASE_URL", "supabase_url", "SUPABASE_PROJECT_URL", "NEXT_PUBLIC_SUPABASE_URL"):
             val = os.getenv(env_k)
             if val:
-                url = _sanitize_secret(val)
+                url = _sanitize_url(val)
                 if url:
                     break
 
@@ -80,9 +118,16 @@ def get_credentials():
         for env_k in ("SUPABASE_KEY", "supabase_key", "SUPABASE_ANON_KEY", "supabase_anon_key", "SUPABASE_API_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY"):
             val = os.getenv(env_k)
             if val:
-                key = _sanitize_secret(val)
+                key = _sanitize_key(val)
                 if key:
                     break
+
+    # 3. Canonical Project URL Fallback:
+    # If a valid SUPABASE_KEY was supplied (e.g. in Streamlit Secrets) but SUPABASE_URL
+    # was either not provided or was left as a placeholder, fall back to the known project URL.
+    if key and not url:
+        url = PROJECT_DEFAULT_URL
+        print(f"[INFO] Using canonical Supabase Project URL: {url}")
 
     return url, key
 
