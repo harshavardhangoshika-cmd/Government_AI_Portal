@@ -14,22 +14,34 @@ try:
 except ImportError:
     from utils.api import api_get
 
+_conn_test_import_error = None
 try:
     from app.database.connection_test import test_supabase_connection
-except ImportError:
-    try:
-        from database.connection_test import test_supabase_connection
-    except ImportError:
-        test_supabase_connection = None
+except Exception as exc:
+    _conn_test_import_error = str(exc)
+    logger.exception(f"Failed to import test_supabase_connection: {_conn_test_import_error}")
+    test_supabase_connection = None
 
+_db_import_error = None
 try:
     from app.database.database import fetch_complaints_state, get_client
-except ImportError:
-    try:
-        from database.database import fetch_complaints_state, get_client
-    except ImportError:
-        fetch_complaints_state = None
-        get_client = None
+except Exception as exc2:
+    _db_import_error = str(exc2)
+    logger.exception(f"Failed to import database functions: {_db_import_error}")
+
+    def fetch_complaints_state():
+        return {
+            "status": "ERROR",
+            "data": [],
+            "count": 0,
+            "is_empty": False,
+            "error_type": "IMPORT_ERROR",
+            "error_message": f"Database module import failed: {_db_import_error}",
+            "exception": None
+        }
+
+    def get_client(force_refresh=False):
+        return None
 
 
 # ============================================================
@@ -39,7 +51,7 @@ except ImportError:
 def render_supabase_diagnostic_card(diag=None):
     """Safely render comprehensive 6-step Supabase connection diagnostics without exposing credentials."""
     if diag is None:
-        if test_supabase_connection:
+        if test_supabase_connection is not None:
             try:
                 diag = test_supabase_connection()
             except Exception as e:
@@ -47,7 +59,8 @@ def render_supabase_diagnostic_card(diag=None):
                 st.error(f"❌ Diagnostic execution error: {e}")
                 return
         else:
-            st.error("❌ Diagnostic engine unavailable (Module import failure).")
+            err_detail = _conn_test_import_error or "test_supabase_connection could not be loaded."
+            st.error(f"❌ Diagnostic engine unavailable: {err_detail}")
             return
 
     is_healthy = (diag.get("status") == "HEALTHY")

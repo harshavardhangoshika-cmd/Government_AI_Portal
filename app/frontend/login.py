@@ -303,8 +303,10 @@ def login_page():
 def open_government_portal():
 
     try:
-
-        from official_app import show_official_portal
+        try:
+            from app.frontend.official_app import show_official_portal
+        except ImportError:
+            from official_app import show_official_portal
 
         show_official_portal()
 
@@ -326,8 +328,10 @@ def open_government_portal():
 def open_citizen_portal():
 
     try:
-
-        from citizen_portal import show_citizen_portal
+        try:
+            from app.frontend.citizen_portal import show_citizen_portal
+        except ImportError:
+            from citizen_portal import show_citizen_portal
 
         show_citizen_portal()
 

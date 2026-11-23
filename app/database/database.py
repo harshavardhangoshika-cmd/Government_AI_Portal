@@ -16,7 +16,6 @@ from typing import Dict, Any, List, Optional, Tuple
 
 from supabase import create_client
 from app.database.config import get_credentials
-from app.database.connection_test import test_supabase_connection
 
 logger = logging.getLogger(__name__)
 

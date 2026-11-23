@@ -74,6 +74,7 @@ if "user_email" not in st.session_state:
 import logging
 logger = logging.getLogger(__name__)
 
+_db_import_error = None
 try:
     from app.database.database import (
         get_client,
@@ -81,36 +82,37 @@ try:
         fetch_complaints_state,
         get_last_db_error
     )
-except ImportError:
-    try:
-        from database.database import (
-            get_client,
-            get_all_complaints,
-            fetch_complaints_state,
-            get_last_db_error
-        )
-    except ImportError as _e:
-        logger.exception("Failed to import app.database.database")
-        get_client = None
-        get_all_complaints = lambda: []
-        fetch_complaints_state = lambda: {
+except Exception as exc:
+    _db_import_error = str(exc)
+    logger.exception(f"Failed to import from app.database.database: {_db_import_error}")
+
+    def get_client(force_refresh=False):
+        return None
+
+    def get_all_complaints(raise_on_error=False):
+        return []
+
+    def fetch_complaints_state():
+        return {
             "status": "ERROR",
             "data": [],
             "count": 0,
             "is_empty": False,
             "error_type": "IMPORT_ERROR",
-            "error_message": str(_e)
+            "error_message": f"Database module import failed: {_db_import_error}",
+            "exception": None
         }
-        get_last_db_error = lambda: str(_e)
 
+    def get_last_db_error():
+        return _db_import_error
+
+_conn_test_import_error = None
 try:
     from app.database.connection_test import test_supabase_connection
-except ImportError:
-    try:
-        from database.connection_test import test_supabase_connection
-    except ImportError as _e2:
-        logger.exception("Failed to import test_supabase_connection")
-        test_supabase_connection = None
+except Exception as exc2:
+    _conn_test_import_error = str(exc2)
+    logger.exception(f"Failed to import test_supabase_connection: {_conn_test_import_error}")
+    test_supabase_connection = None
 
 
 def render_supabase_diagnostic_panel(diag=None):
@@ -119,7 +121,7 @@ def render_supabase_diagnostic_panel(diag=None):
     without exposing credentials.
     """
     if diag is None:
-        if test_supabase_connection:
+        if test_supabase_connection is not None:
             try:
                 diag = test_supabase_connection()
             except Exception as e:
@@ -127,7 +129,8 @@ def render_supabase_diagnostic_panel(diag=None):
                 st.error(f"❌ Diagnostic execution error: {e}")
                 return
         else:
-            st.error("❌ Diagnostic engine could not be loaded (Module import failure).")
+            err_detail = _conn_test_import_error or "test_supabase_connection could not be loaded."
+            st.error(f"❌ Diagnostic engine could not be loaded: {err_detail}")
             return
 
     is_healthy = (diag.get("status") == "HEALTHY")
