@@ -3,6 +3,13 @@ import os
 import urllib.parse
 from pathlib import Path
 
+# Install resilient IPv4 DNS resolver hook for Supabase cloud endpoints
+try:
+    from app.database.dns_patch import install_dns_patch
+    install_dns_patch()
+except Exception:
+    pass
+
 BASE_DIR = Path(__file__).resolve().parent
 ENV_FILE = BASE_DIR / ".env"
 
@@ -19,17 +26,20 @@ PROJECT_DEFAULT_URL = f"https://{PROJECT_EXPECTED_HOST}"
 def _sanitize_url(val):
     """
     Ultra-resilient URL sanitizer:
-    - Strips whitespace, straight/curly quotes, backticks, angle brackets.
+    - Strips whitespace, straight/curly quotes, backticks, angle brackets, zero-width chars.
     - Guarantees 'https://' scheme.
-    - Removes trailing slashes.
+    - Extracts pure root origin (strips any accidentally appended path like /rest/v1 or trailing slashes).
     - Detects unconfigured example placeholders ('your-project-id.supabase.co')
       and safely auto-resolves to the project canonical URL.
+    - Preserves hostname verification and avoids hardcoded IPs.
     """
     if val is None:
         return None
     val = str(val).strip()
     # Strip accidental straight/curly quotes, backticks, brackets
     val = val.strip("\"'“”`<> ").strip()
+    # Remove invisible zero-width and non-breaking space characters
+    val = val.replace("\u200b", "").replace("\u00a0", "").replace("\ufeff", "").strip()
     if not val:
         return None
 
@@ -44,17 +54,33 @@ def _sanitize_url(val):
     elif val.startswith("http://"):
         val = "https://" + val[7:]
 
-    val = val.rstrip("/")
+    # Parse and extract pure root origin (scheme + netloc without path or port)
+    try:
+        parsed = urllib.parse.urlparse(val)
+        host = (parsed.netloc or parsed.path).split("/")[0].strip()
+        # If port was included, keep it only if not default 443
+        if ":" in host:
+            h_parts = host.split(":")
+            if h_parts[1] in ("443", "80"):
+                host = h_parts[0]
+        if host:
+            val = f"https://{host}"
+        else:
+            val = val.rstrip("/")
+    except Exception:
+        val = val.rstrip("/")
+
     return val
 
 
 def _sanitize_key(val):
-    """Strip whitespace and accidental enclosing quotes from keys."""
+    """Strip whitespace, zero-width chars, and accidental enclosing quotes from keys."""
     if val is None:
         return None
     val = str(val).strip()
     # Strip accidental straight/curly quotes, backticks, brackets
     val = val.strip("\"'“”`<> ").strip()
+    val = val.replace("\u200b", "").replace("\u00a0", "").replace("\ufeff", "").strip()
     return val if val else None
 
 

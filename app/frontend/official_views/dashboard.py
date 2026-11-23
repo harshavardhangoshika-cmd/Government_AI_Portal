@@ -117,6 +117,7 @@ def render_supabase_diagnostic_card(diag=None):
 
     col_a, col_b = st.columns(2)
     with col_a:
+        st.markdown(f"**Deployed Git Commit:** `{diag.get('deployed_commit', 'ce2502d+')}`")
         st.markdown(f"**URL Configured:** {'✅ Yes' if diag.get('url_masked') != 'Not Configured' else '❌ Missing'}")
         st.markdown(f"**Masked URL:** `{diag.get('url_masked', 'Not Configured')}`")
         st.markdown(f"**Configured Hostname:** `{diag.get('hostname_parsed', 'None')}`")

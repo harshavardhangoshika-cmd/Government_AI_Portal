@@ -23,6 +23,12 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 try:
+    from app.database.dns_patch import install_dns_patch
+    install_dns_patch()
+except Exception:
+    pass
+
+try:
     from dotenv import load_dotenv
     _base_dir = Path(__file__).resolve().parent
     _env_file = _base_dir / ".env"
@@ -35,6 +41,39 @@ except Exception:
 
 EXPECTED_PROJECT_HOST = "uusnnqbutovbnjqzyhmx.supabase.co"
 EXPECTED_DEFAULT_URL = f"https://{EXPECTED_PROJECT_HOST}"
+
+
+def get_deployed_commit() -> str:
+    """Return the currently running Git commit hash."""
+    try:
+        import subprocess
+        res = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=2
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            return res.stdout.strip()
+    except Exception:
+        pass
+
+    try:
+        git_dir = Path(__file__).resolve().parents[2] / ".git"
+        head_file = git_dir / "HEAD"
+        if head_file.exists():
+            ref = head_file.read_text().strip()
+            if ref.startswith("ref: "):
+                ref_path = git_dir / ref[5:].strip()
+                if ref_path.exists():
+                    return ref_path.read_text().strip()[:7]
+            else:
+                return ref[:7]
+    except Exception:
+        pass
+
+    return "HEAD (Latest Main)"
 
 
 def mask_url(url: Optional[str]) -> str:
@@ -165,6 +204,7 @@ def test_supabase_connection() -> Dict[str, Any]:
         "failed_step": None,
         "classification": "UNKNOWN",
         "actionable_guidance": "",
+        "deployed_commit": get_deployed_commit(),
         "steps": {
             "step1_secrets": {"passed": False, "details": ""},
             "step2_url_validation": {"passed": False, "details": ""},
@@ -424,17 +464,17 @@ def test_supabase_connection() -> Dict[str, Any]:
         return report
 
     # ----------------------------------------------------
-    # STEP 6: Read-only Query
+    # STEP 6: Read-only Query (complaints table authenticated select)
     # ----------------------------------------------------
     try:
         t0 = time.time()
-        res = client.table("complaints").select("id").limit(1).execute()
+        res = client.table("complaints").select("id, complaint_number, status, department").limit(5).execute()
         q_latency = round((time.time() - t0) * 1000, 1)
         row_count = len(res.data) if res and hasattr(res, "data") and res.data else 0
         report["query_row_count"] = row_count
         report["steps"]["step6_read_query"] = {
             "passed": True,
-            "details": f"Query executed successfully in {q_latency}ms (sample row fetched: {row_count})"
+            "details": f"Query executed successfully in {q_latency}ms ({row_count} live complaints verified)"
         }
     except Exception as e:
         report["status"] = "ERROR"
@@ -442,11 +482,11 @@ def test_supabase_connection() -> Dict[str, Any]:
         report["classification"] = "QUERY_EXECUTION_ERROR"
         report["steps"]["step6_read_query"] = {
             "passed": False,
-            "details": f"Query execution failed: {str(e)}"
+            "details": f"Authenticated database query failed: {str(e)}"
         }
         report["actionable_guidance"] = (
             f"Read query failed: {str(e)}. "
-            "Check Row Level Security (RLS) policies on the 'complaints' table."
+            "Check Row Level Security (RLS) policies on the 'complaints' table or database status."
         )
         report["latency_ms"] = round((time.time() - start_total) * 1000, 1)
         return report

@@ -17,6 +17,12 @@ from typing import Dict, Any, List, Optional, Tuple
 from supabase import create_client
 from app.database.config import get_credentials
 
+try:
+    from app.database.dns_patch import install_dns_patch
+    install_dns_patch()
+except Exception:
+    pass
+
 logger = logging.getLogger(__name__)
 
 # --------------------------------------------------
@@ -90,12 +96,12 @@ supabase = get_client()
 
 
 # --------------------------------------------------
-# Structured Complaints Fetching
+# Structured Complaints Fetching (With Bounded Retries)
 # --------------------------------------------------
 
-def fetch_complaints_state() -> Dict[str, Any]:
+def fetch_complaints_state(max_retries: int = 3, initial_backoff: float = 0.5) -> Dict[str, Any]:
     """
-    Fetch all complaints and return an explicit state dictionary.
+    Fetch all complaints with bounded retries and exponential backoff for transient DNS/network errors.
     CRITICAL: Never confuses a database failure with an empty complaint list.
     
     Returns:
@@ -110,6 +116,13 @@ def fetch_complaints_state() -> Dict[str, Any]:
         }
     """
     global last_db_error
+
+    try:
+        from app.database.dns_patch import install_dns_patch
+        install_dns_patch()
+    except Exception:
+        pass
+
     client = get_client()
     if client is None:
         last_db_error = "Database client not initialized (missing or invalid credentials)."
@@ -123,29 +136,29 @@ def fetch_complaints_state() -> Dict[str, Any]:
             "exception": DatabaseNotConfiguredError(last_db_error)
         }
 
-    try:
-        response = (
-            client
-            .table("complaints")
-            .select("*")
-            .order("created_at", desc=True)
-            .execute()
-        )
-        data = response.data or []
-        last_db_error = None
-        return {
-            "status": "SUCCESS",
-            "data": data,
-            "count": len(data),
-            "is_empty": (len(data) == 0),
-            "error_type": None,
-            "error_message": None,
-            "exception": None
-        }
-    except Exception as e:
-        logger.warning(f"[WARN] Ordered query failed: {e}. Trying unordered fallback...")
+    import time
+    last_exception = None
+    backoff = initial_backoff
+
+    for attempt in range(1, max_retries + 1):
         try:
-            response = client.table("complaints").select("*").execute()
+            # 1. Try ordered query
+            try:
+                response = (
+                    client
+                    .table("complaints")
+                    .select("*")
+                    .order("created_at", desc=True)
+                    .execute()
+                )
+            except Exception as order_exc:
+                err_text = str(order_exc).lower()
+                # If network/DNS failure, do not run unordered in same attempt; re-raise for backoff
+                if "name or service not known" in err_text or "connect" in err_text or "timeout" in err_text:
+                    raise order_exc
+                logger.warning(f"[WARN] Ordered query failed ({order_exc}). Trying unordered query...")
+                response = client.table("complaints").select("*").execute()
+
             data = response.data or []
             last_db_error = None
             return {
@@ -157,32 +170,47 @@ def fetch_complaints_state() -> Dict[str, Any]:
                 "error_message": None,
                 "exception": None
             }
-        except Exception as e2:
-            last_db_error = str(e2)
-            logger.error(f"[ERROR] fetch_complaints_state failed: {e2}", exc_info=True)
-            
-            # Classify error type
-            err_str = str(e2).lower()
-            if "name or service not known" in err_str or "getaddrinfo" in err_str:
-                err_type = "DNS_RESOLUTION_FAILURE"
-            elif "401" in err_str or "jwt" in err_str or "unauthorized" in err_str:
-                err_type = "AUTH_ERROR"
-            elif "403" in err_str or "policy" in err_str or "permission" in err_str:
-                err_type = "PERMISSION_ERROR"
-            elif "timeout" in err_str:
-                err_type = "TIMEOUT"
-            else:
-                err_type = "QUERY_ERROR"
+        except Exception as exc:
+            last_exception = exc
+            err_str = str(exc)
+            logger.warning(f"[WARN] fetch_complaints_state attempt {attempt}/{max_retries} failed: {err_str}")
 
-            return {
-                "status": "ERROR",
-                "data": [],
-                "count": 0,
-                "is_empty": False,
-                "error_type": err_type,
-                "error_message": str(e2),
-                "exception": e2
-            }
+            if attempt < max_retries:
+                time.sleep(backoff)
+                backoff *= 2.0
+                # Force client recreate to discard failed httpx connection pool
+                if "name or service not known" in err_str.lower() or "connect" in err_str.lower() or "errno -2" in err_str.lower():
+                    try:
+                        client = get_client(force_refresh=True)
+                    except Exception:
+                        pass
+
+    # All retries failed
+    last_db_error = str(last_exception)
+    logger.error(f"[ERROR] fetch_complaints_state failed after {max_retries} attempts: {last_exception}", exc_info=True)
+
+    # Classify error type
+    err_str = str(last_exception).lower()
+    if "name or service not known" in err_str or "getaddrinfo" in err_str or "connecterror" in err_str or "errno -2" in err_str:
+        err_type = "DNS_RESOLUTION_FAILURE"
+    elif "401" in err_str or "jwt" in err_str or "unauthorized" in err_str:
+        err_type = "AUTH_ERROR"
+    elif "403" in err_str or "policy" in err_str or "permission" in err_str:
+        err_type = "PERMISSION_ERROR"
+    elif "timeout" in err_str:
+        err_type = "TIMEOUT"
+    else:
+        err_type = "QUERY_ERROR"
+
+    return {
+        "status": "ERROR",
+        "data": [],
+        "count": 0,
+        "is_empty": False,
+        "error_type": err_type,
+        "error_message": str(last_exception),
+        "exception": last_exception
+    }
 
 
 __all__ = [

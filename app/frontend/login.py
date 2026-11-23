@@ -11,6 +11,13 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(FRONTEND_DIR) not in sys.path:
     sys.path.insert(0, str(FRONTEND_DIR))
 
+# Install resilient IPv4 DNS hook for Supabase cloud endpoints
+try:
+    from app.database.dns_patch import install_dns_patch
+    install_dns_patch()
+except Exception:
+    pass
+
 
 # ============================================================
 # PAGE CONFIGURATION
