@@ -1,7 +1,15 @@
 import os
 import joblib
+import warnings
 import pandas as pd
 from datetime import datetime
+
+# Filter out InconsistentVersionWarning from older pickled models
+try:
+    from sklearn.exceptions import InconsistentVersionWarning
+    warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
+except ImportError:
+    pass
 
 
 # ============================================================

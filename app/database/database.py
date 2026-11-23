@@ -10,13 +10,14 @@ from app.database.config import get_credentials
 # --------------------------------------------------
 
 supabase = None
+last_db_error = None
 
 def get_client():
     """
     Returns an active Supabase client. Lazily initializes if
     secrets become available after initial module import.
     """
-    global supabase
+    global supabase, last_db_error
     if supabase is not None:
         return supabase
 
@@ -26,6 +27,7 @@ def get_client():
             supabase = create_client(url, key)
             print("[OK] Supabase Connected Successfully!")
         except Exception as e:
+            last_db_error = str(e)
             print(f"[WARN] Supabase Connection Failed: {e}")
             supabase = None
     return supabase
@@ -91,19 +93,33 @@ def get_complaint_by_number(complaint_number):
 
 
 def get_all_complaints():
+    global last_db_error
     client = get_client()
     if client is None:
         return []
 
-    response = (
-        client
-        .table("complaints")
-        .select("*")
-        .order("created_at", desc=True)
-        .execute()
-    )
-
-    return response.data or []
+    try:
+        response = (
+            client
+            .table("complaints")
+            .select("*")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        last_db_error = None
+        return response.data or []
+    except Exception as e:
+        last_db_error = str(e)
+        print(f"[WARN] get_all_complaints ordered query failed: {e}. Trying unordered query...")
+        try:
+            # Fallback if created_at sorting fails
+            response = client.table("complaints").select("*").execute()
+            last_db_error = None
+            return response.data or []
+        except Exception as e2:
+            last_db_error = str(e2)
+            print(f"[ERROR] get_all_complaints query failed: {e2}")
+            return []
 
 
 def update_complaint_status(complaint_number, status, assigned_officer=None, officer_remarks=None, department=None, priority=None):

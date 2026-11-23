@@ -12,6 +12,53 @@ try:
 except ImportError:
     from utils.api import api_get
 
+try:
+    from app.database.diagnostics import run_supabase_diagnostic
+except ImportError:
+    try:
+        from database.diagnostics import run_supabase_diagnostic
+    except ImportError:
+        run_supabase_diagnostic = None
+
+
+# ============================================================
+# SAFE SUPABASE DIAGNOSTIC CARD
+# ============================================================
+
+def render_supabase_diagnostic_card(diag=None):
+    """Safely render Supabase connection diagnostics without exposing credentials."""
+    if diag is None and run_supabase_diagnostic:
+        diag = run_supabase_diagnostic()
+    if not diag:
+        st.warning("Diagnostic engine unavailable.")
+        return
+
+    is_healthy = (diag.get("status") == "HEALTHY")
+    
+    if is_healthy:
+        st.success(f"✅ **Supabase Database Connected & Operational** — {diag.get('complaint_count', 0)} records accessible in `complaints` table.")
+    else:
+        st.error(f"❌ **Supabase Connection Issue: {diag.get('classification', 'ERROR')}**")
+        if diag.get("actionable_guidance"):
+            st.info(f"💡 **Recommended Action:** {diag['actionable_guidance']}")
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown(f"**URL Configured:** {'✅ Yes' if diag.get('url_present') else '❌ Missing'}")
+        st.markdown(f"**Host / Endpoint:** `{diag.get('url_masked', 'Not configured')}`")
+        dns_status = f"✅ Resolved ({diag.get('dns_ip')})" if diag.get("dns_resolved") else f"❌ Failed ({diag.get('dns_error', 'N/A')})"
+        st.markdown(f"**DNS Resolution:** {dns_status}")
+    with col_b:
+        key_meta = diag.get("key_meta", {})
+        st.markdown(f"**Key Configured:** {'✅ Yes' if key_meta.get('present') else '❌ Missing'}")
+        st.markdown(f"**Key Type:** `{key_meta.get('type', 'None')}` ({key_meta.get('length', 0)} chars)")
+        https_status = f"✅ Reachable (HTTP {diag.get('https_status')})" if diag.get("https_ok") else f"❌ {diag.get('https_error', 'Unavailable')}"
+        st.markdown(f"**HTTPS Reachability:** {https_status}")
+
+    st.markdown(f"**Read Query Test (`complaints` table):** {'✅ Passed' if diag.get('query_ok') else '❌ Failed'}")
+    if diag.get("error_message") and not is_healthy:
+        st.code(f"Diagnostic Details: {diag['error_message']}", language="text")
+
 # ============================================================
 # GET DASHBOARD DATA
 # ============================================================
@@ -83,11 +130,11 @@ def show():
     if dashboard is None:
 
         st.error("⚠️ **Analytics Data Unavailable**")
-        st.info(
-            "Unable to retrieve complaint summary statistics. "
-            "Please ensure that either the central database credentials (SUPABASE_URL and SUPABASE_KEY) "
-            "or the dedicated FastAPI backend URL (API_BASE_URL) are configured in Streamlit Secrets."
+        st.write(
+            "The official dashboard could not retrieve complaint analytics. "
+            "A safe automated diagnostic of your database configuration was executed below:"
         )
+        render_supabase_diagnostic_card()
 
         return
 
@@ -475,10 +522,13 @@ def show():
 
 
     # ========================================================
-    # BACKEND STATUS
+    # BACKEND & DATABASE DIAGNOSTICS
     # ========================================================
 
     st.divider()
+
+    with st.expander("🔍 Live Supabase & Analytics Diagnostic", expanded=False):
+        render_supabase_diagnostic_card()
 
     st.success(
         "🟢 Government Intelligence Backend Connected"

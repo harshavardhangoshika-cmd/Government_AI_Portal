@@ -29,7 +29,8 @@ def get_dashboard_summary():
             "priority": {
                 "low": 0,
                 "medium": 0,
-                "high": 0
+                "high": 0,
+                "urgent": 0
             },
             "departments": {}
         }
@@ -117,7 +118,8 @@ def get_dashboard_summary():
     priority = {
         "low": 0,
         "medium": 0,
-        "high": 0
+        "high": 0,
+        "urgent": 0
     }
 
     if "priority" in df.columns:
@@ -140,6 +142,10 @@ def get_dashboard_summary():
 
         priority["high"] = int(
             (priority_values == "high").sum()
+        )
+
+        priority["urgent"] = int(
+            (priority_values == "urgent").sum()
         )
 
     # ========================================================
