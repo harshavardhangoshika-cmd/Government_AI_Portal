@@ -74,34 +74,65 @@ if "user_email" not in st.session_state:
 import logging
 logger = logging.getLogger(__name__)
 
+import importlib
 _db_import_error = None
+
 try:
-    from app.database.database import (
-        get_client,
-        get_all_complaints,
-        fetch_complaints_state,
-        get_last_db_error
-    )
+    import app.database.database as db
+    if not hasattr(db, "fetch_complaints_state"):
+        db = importlib.reload(db)
+
+    get_client = db.get_client
+    get_all_complaints = db.get_all_complaints
+    fetch_complaints_state = db.fetch_complaints_state
+    get_last_db_error = getattr(db, "get_last_db_error", lambda: getattr(db, "last_db_error", None))
 except Exception as exc:
     _db_import_error = str(exc)
-    logger.exception(f"Failed to import from app.database.database: {_db_import_error}")
+    logger.exception(f"Importing app.database.database failed: {_db_import_error}")
 
-    def get_client(force_refresh=False):
-        return None
-
-    def get_all_complaints(raise_on_error=False):
-        return []
+    try:
+        from app.database.database import get_client as _gc
+        get_client = _gc
+    except Exception:
+        get_client = lambda force_refresh=False: None
 
     def fetch_complaints_state():
-        return {
-            "status": "ERROR",
-            "data": [],
-            "count": 0,
-            "is_empty": False,
-            "error_type": "IMPORT_ERROR",
-            "error_message": f"Database module import failed: {_db_import_error}",
-            "exception": None
-        }
+        client = get_client()
+        if client is None:
+            return {
+                "status": "ERROR",
+                "data": [],
+                "count": 0,
+                "is_empty": False,
+                "error_type": "IMPORT_ERROR",
+                "error_message": f"Database client unavailable: {_db_import_error}",
+                "exception": None
+            }
+        try:
+            res = client.table("complaints").select("*").order("created_at", desc=True).execute()
+            data = res.data or []
+            return {
+                "status": "SUCCESS",
+                "data": data,
+                "count": len(data),
+                "is_empty": (len(data) == 0),
+                "error_type": None,
+                "error_message": None,
+                "exception": None
+            }
+        except Exception as q_exc:
+            return {
+                "status": "ERROR",
+                "data": [],
+                "count": 0,
+                "is_empty": False,
+                "error_type": "QUERY_ERROR",
+                "error_message": str(q_exc),
+                "exception": q_exc
+            }
+
+    def get_all_complaints(raise_on_error=False):
+        return fetch_complaints_state().get("data", [])
 
     def get_last_db_error():
         return _db_import_error

@@ -22,26 +22,60 @@ except Exception as exc:
     logger.exception(f"Failed to import test_supabase_connection: {_conn_test_import_error}")
     test_supabase_connection = None
 
+import importlib
 _db_import_error = None
+
 try:
-    from app.database.database import fetch_complaints_state, get_client
+    import app.database.database as db
+    if not hasattr(db, "fetch_complaints_state"):
+        db = importlib.reload(db)
+
+    fetch_complaints_state = db.fetch_complaints_state
+    get_client = db.get_client
 except Exception as exc2:
     _db_import_error = str(exc2)
-    logger.exception(f"Failed to import database functions: {_db_import_error}")
+    logger.exception(f"Importing app.database.database in dashboard failed: {_db_import_error}")
+
+    try:
+        from app.database.database import get_client as _gc
+        get_client = _gc
+    except Exception:
+        get_client = lambda force_refresh=False: None
 
     def fetch_complaints_state():
-        return {
-            "status": "ERROR",
-            "data": [],
-            "count": 0,
-            "is_empty": False,
-            "error_type": "IMPORT_ERROR",
-            "error_message": f"Database module import failed: {_db_import_error}",
-            "exception": None
-        }
-
-    def get_client(force_refresh=False):
-        return None
+        client = get_client()
+        if client is None:
+            return {
+                "status": "ERROR",
+                "data": [],
+                "count": 0,
+                "is_empty": False,
+                "error_type": "IMPORT_ERROR",
+                "error_message": f"Database client unavailable: {_db_import_error}",
+                "exception": None
+            }
+        try:
+            res = client.table("complaints").select("*").order("created_at", desc=True).execute()
+            data = res.data or []
+            return {
+                "status": "SUCCESS",
+                "data": data,
+                "count": len(data),
+                "is_empty": (len(data) == 0),
+                "error_type": None,
+                "error_message": None,
+                "exception": None
+            }
+        except Exception as q_exc:
+            return {
+                "status": "ERROR",
+                "data": [],
+                "count": 0,
+                "is_empty": False,
+                "error_type": "QUERY_ERROR",
+                "error_message": str(q_exc),
+                "exception": q_exc
+            }
 
 
 # ============================================================

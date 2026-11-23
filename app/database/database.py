@@ -185,6 +185,24 @@ def fetch_complaints_state() -> Dict[str, Any]:
             }
 
 
+__all__ = [
+    "get_client",
+    "get_all_complaints",
+    "fetch_complaints_state",
+    "save_complaint",
+    "get_complaint_by_number",
+    "update_complaint_status",
+    "get_last_db_error",
+    "last_db_error",
+    "supabase",
+    "DatabaseError",
+    "DatabaseNotConfiguredError",
+    "DatabaseConnectionError",
+    "DatabaseAuthError",
+    "DatabasePermissionError",
+]
+
+
 def get_all_complaints(raise_on_error: bool = False) -> List[Dict[str, Any]]:
     """
     Retrieve all complaints.
