@@ -14,17 +14,30 @@ else:
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# Priority 2: Streamlit Secrets (for Streamlit Community Cloud)
-if not SUPABASE_URL or not SUPABASE_KEY:
-    try:
-        import streamlit as st
-        if hasattr(st, "secrets"):
-            if "SUPABASE_URL" in st.secrets:
-                SUPABASE_URL = str(st.secrets["SUPABASE_URL"])
-            if "SUPABASE_KEY" in st.secrets:
-                SUPABASE_KEY = str(st.secrets["SUPABASE_KEY"])
-    except Exception:
-        pass
+def get_credentials():
+    global SUPABASE_URL, SUPABASE_KEY
+    # Check Streamlit Cloud Secrets if not loaded from environment
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        try:
+            import streamlit as st
+            if hasattr(st, "secrets"):
+                if "SUPABASE_URL" in st.secrets:
+                    SUPABASE_URL = str(st.secrets["SUPABASE_URL"]).strip()
+                if "SUPABASE_KEY" in st.secrets:
+                    SUPABASE_KEY = str(st.secrets["SUPABASE_KEY"]).strip()
+        except Exception:
+            pass
+
+    # Fallback to os.getenv in case env was populated later
+    if not SUPABASE_URL:
+        SUPABASE_URL = os.getenv("SUPABASE_URL")
+    if not SUPABASE_KEY:
+        SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+    return SUPABASE_URL, SUPABASE_KEY
+
+# Initialize on import
+get_credentials()
 
 if SUPABASE_URL and SUPABASE_KEY:
     print("[OK] Supabase credentials loaded successfully.")

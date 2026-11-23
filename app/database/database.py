@@ -3,22 +3,36 @@
 # --------------------------------------------------
 
 from supabase import create_client
-from app.database.config import SUPABASE_URL, SUPABASE_KEY
+from app.database.config import get_credentials
 
 # --------------------------------------------------
-# Create Supabase Connection
+# Create Supabase Connection (Lazy & Resilient)
 # --------------------------------------------------
 
 supabase = None
-if SUPABASE_URL and SUPABASE_KEY:
-    try:
-        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        print("[OK] Supabase Connected Successfully!")
-    except Exception as e:
-        print(f"[WARN] Supabase Connection Failed: {e}")
-        supabase = None
-else:
-    print("[WARN] Supabase credentials not set. Running in offline/draft mode.")
+
+def get_client():
+    """
+    Returns an active Supabase client. Lazily initializes if
+    secrets become available after initial module import.
+    """
+    global supabase
+    if supabase is not None:
+        return supabase
+
+    url, key = get_credentials()
+    if url and key:
+        try:
+            supabase = create_client(url, key)
+            print("[OK] Supabase Connected Successfully!")
+        except Exception as e:
+            print(f"[WARN] Supabase Connection Failed: {e}")
+            supabase = None
+    return supabase
+
+# Initial connection attempt on module import
+supabase = get_client()
+
 
 def save_complaint(
     complaint_text,
@@ -33,7 +47,8 @@ def save_complaint(
     state=None,
     district=None
 ):
-    if supabase is None:
+    client = get_client()
+    if client is None:
         raise RuntimeError("Database connection not configured.")
 
     data = {
@@ -51,16 +66,18 @@ def save_complaint(
         "status": "Submitted"
     }
 
-    response = supabase.table("complaints").insert(data).execute()
+    response = client.table("complaints").insert(data).execute()
 
     return response.data[0]
 
+
 def get_complaint_by_number(complaint_number):
-    if supabase is None:
+    client = get_client()
+    if client is None:
         return None
 
     response = (
-        supabase
+        client
         .table("complaints")
         .select("*")
         .eq("complaint_number", complaint_number)
@@ -72,12 +89,14 @@ def get_complaint_by_number(complaint_number):
 
     return None
 
+
 def get_all_complaints():
-    if supabase is None:
+    client = get_client()
+    if client is None:
         return []
 
     response = (
-        supabase
+        client
         .table("complaints")
         .select("*")
         .order("created_at", desc=True)
@@ -86,8 +105,10 @@ def get_all_complaints():
 
     return response.data or []
 
+
 def update_complaint_status(complaint_number, status, assigned_officer=None, officer_remarks=None, department=None, priority=None):
-    if supabase is None:
+    client = get_client()
+    if client is None:
         return None
 
     from datetime import datetime, timezone
@@ -106,7 +127,7 @@ def update_complaint_status(complaint_number, status, assigned_officer=None, off
         update_data["priority"] = priority
 
     response = (
-        supabase
+        client
         .table("complaints")
         .update(update_data)
         .eq("complaint_number", complaint_number)
