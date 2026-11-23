@@ -4,23 +4,13 @@ import pandas as pd
 
 
 # ============================================================
-# FASTAPI BACKEND
+# FASTAPI BACKEND & DATA FETCHING
 # ============================================================
 
 try:
-    from app.frontend.utils.api import get_api_urls
+    from app.frontend.utils.api import api_get
 except ImportError:
-    from utils.api import get_api_urls
-
-def _fetch_api(path, timeout=2):
-    for base in get_api_urls():
-        try:
-            res = requests.get(f"{base}{path}", timeout=timeout)
-            if res.status_code == 200:
-                return res.json()
-        except Exception:
-            continue
-    return None
+    from utils.api import api_get
 
 # ============================================================
 # GET GOVERNMENT PREDICTIONS
@@ -28,8 +18,8 @@ def _fetch_api(path, timeout=2):
 
 @st.cache_data(ttl=30)
 def get_predictions():
-    res = _fetch_api("/government/predictions", timeout=2)
-    if res:
+    res = api_get("/government/predictions", timeout=3)
+    if res and isinstance(res, dict) and "total_analyzed" in res:
         return res
 
     # Direct local calculation fallback
@@ -64,9 +54,11 @@ def show():
 
     if predictions is None:
 
-        st.warning(
-            "Please make sure the FastAPI backend is running "
-            "on port 8000."
+        st.error("⚠️ **AI Predictions Data Unavailable**")
+        st.info(
+            "Unable to analyze complaint predictions. "
+            "Please verify that either the central database credentials (SUPABASE_URL and SUPABASE_KEY) "
+            "or the dedicated FastAPI backend URL (API_BASE_URL) are configured in Streamlit Secrets."
         )
 
         return

@@ -1,6 +1,8 @@
 from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
+import os
 
 from typing import Optional, List
 from datetime import datetime, timezone, timedelta
@@ -37,6 +39,25 @@ app = FastAPI(
     title="Government Complaint AI",
     version="1.0"
 )
+
+# Enable CORS for Streamlit Cloud and external clients
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/health")
+def health_probe():
+    return {
+        "status": "healthy",
+        "service": "Government Complaint AI Backend",
+        "version": "1.0",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
 
 
 # ============================================================
@@ -945,3 +966,9 @@ def government_current_anomalies():
     )
 
     return get_current_anomaly_detection()
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("app.backend.main:app", host="0.0.0.0", port=port, reload=False)

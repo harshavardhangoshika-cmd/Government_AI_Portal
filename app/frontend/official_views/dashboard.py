@@ -4,23 +4,13 @@ import pandas as pd
 
 
 # ============================================================
-# FASTAPI BACKEND
+# FASTAPI BACKEND & DATA FETCHING
 # ============================================================
 
 try:
-    from app.frontend.utils.api import get_api_urls
+    from app.frontend.utils.api import api_get
 except ImportError:
-    from utils.api import get_api_urls
-
-def _fetch_api(path, timeout=2):
-    for base in get_api_urls():
-        try:
-            res = requests.get(f"{base}{path}", timeout=timeout)
-            if res.status_code == 200:
-                return res.json()
-        except Exception:
-            continue
-    return None
+    from utils.api import api_get
 
 # ============================================================
 # GET DASHBOARD DATA
@@ -29,8 +19,8 @@ def _fetch_api(path, timeout=2):
 @st.cache_data(ttl=30)
 def get_dashboard_data():
     """Fetch government dashboard statistics from FastAPI or local analytics fallback."""
-    res = _fetch_api("/government/dashboard", timeout=2)
-    if res:
+    res = api_get("/government/dashboard", timeout=3)
+    if res and isinstance(res, dict) and "total_complaints" in res:
         return res
 
     # Direct local calculation fallback
@@ -48,8 +38,8 @@ def get_dashboard_data():
 @st.cache_data(ttl=30)
 def get_trend_data():
     """Fetch complaint trend information from FastAPI or local analytics fallback."""
-    res = _fetch_api("/government/trends", timeout=2)
-    if res:
+    res = api_get("/government/trends", timeout=3)
+    if res and isinstance(res, dict) and "data" in res:
         return res
 
     # Direct local calculation fallback
@@ -92,9 +82,11 @@ def show():
 
     if dashboard is None:
 
-        st.warning(
-            "Please make sure the FastAPI backend is running "
-            "on port 8000."
+        st.error("⚠️ **Analytics Data Unavailable**")
+        st.info(
+            "Unable to retrieve complaint summary statistics. "
+            "Please ensure that either the central database credentials (SUPABASE_URL and SUPABASE_KEY) "
+            "or the dedicated FastAPI backend URL (API_BASE_URL) are configured in Streamlit Secrets."
         )
 
         return

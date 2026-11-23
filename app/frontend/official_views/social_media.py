@@ -5,19 +5,9 @@ import plotly.graph_objects as go
 
 
 try:
-    from app.frontend.utils.api import get_api_urls
+    from app.frontend.utils.api import api_get
 except ImportError:
-    from utils.api import get_api_urls
-
-def _fetch_api(path, timeout=2):
-    for base in get_api_urls():
-        try:
-            res = requests.get(f"{base}{path}", timeout=timeout)
-            if res.status_code == 200:
-                return res.json()
-        except Exception:
-            continue
-    return None
+    from utils.api import api_get
 
 # ============================================================
 # LOAD SOCIAL MEDIA DATA FROM BACKEND
@@ -25,8 +15,8 @@ def _fetch_api(path, timeout=2):
 
 @st.cache_data(ttl=60)
 def load_social_media_data():
-    res = _fetch_api("/government/social-media", timeout=2)
-    if res:
+    res = api_get("/government/social-media", timeout=3)
+    if res and isinstance(res, dict) and "status" in res:
         return res
 
     # Direct local calculation fallback
@@ -43,8 +33,8 @@ def load_social_media_data():
 
 @st.cache_data(ttl=60)
 def load_social_media_forecast():
-    res = _fetch_api("/government/social-media/forecast", timeout=2)
-    if res:
+    res = api_get("/government/social-media/forecast", timeout=3)
+    if res and isinstance(res, dict) and "status" in res:
         return res
 
     # Direct local calculation fallback
@@ -80,6 +70,8 @@ def show():
     data = load_social_media_data()
 
     if data is None:
+
+        st.info("ℹ️ Social media analytics data is currently calculating or unavailable.")
 
         return
 

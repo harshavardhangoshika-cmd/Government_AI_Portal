@@ -9,9 +9,9 @@ from app.database.database import get_all_complaints
 from app.utils.sla_engine import enrich_complaints_with_sla
 
 try:
-    from app.frontend.utils.api import get_api_urls
+    from app.frontend.utils.api import api_get
 except ImportError:
-    from utils.api import get_api_urls
+    from utils.api import api_get
 
 from app.utils.locations import DISTRICT_COORDS
 
@@ -19,15 +19,11 @@ from app.utils.locations import DISTRICT_COORDS
 @st.cache_data(ttl=15)
 def fetch_complaints():
     """Fetch complaints from API or database with SLA enrichment fallback."""
-    for base_url in get_api_urls():
-        try:
-            res = requests.get(f"{base_url}/government/complaints", timeout=2)
-            if res.status_code == 200:
-                data = res.json().get("data", [])
-                if data:
-                    return data
-        except Exception:
-            continue
+    res = api_get("/government/complaints", timeout=3.0)
+    if res and isinstance(res, dict) and "data" in res:
+        data = res.get("data", [])
+        if data:
+            return data
 
     raw = get_all_complaints() or []
     return enrich_complaints_with_sla(raw)

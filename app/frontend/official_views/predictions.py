@@ -5,22 +5,24 @@ import pandas as pd
 # ============================================================
 # DATABASE
 # ============================================================
-from app.database.database import supabase
+from app.database.database import get_client, get_all_complaints
 
 
 @st.cache_data(ttl=15)
 def fetch_all_db_complaints():
     try:
-        res = (
-            supabase
-            .table("complaints")
-            .select("*")
-            .order("created_at", desc=True)
-            .execute()
-        )
-        return res.data or []
+        client = get_client()
+        if client:
+            res = (
+                client
+                .table("complaints")
+                .select("*")
+                .order("created_at", desc=True)
+                .execute()
+            )
+            return res.data or []
+        return get_all_complaints() or []
     except Exception:
-        from app.database.database import get_all_complaints
         return get_all_complaints() or []
 
 

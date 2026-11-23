@@ -6,54 +6,96 @@ import streamlit as st
 # FASTAPI ENDPOINTS & CLOUD COMPATIBILITY
 # ============================================================
 
+def _is_port_open(host="127.0.0.1", port=8000, timeout=0.3):
+    """Fast non-blocking check to see if local backend is alive."""
+    import socket
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
 def _get_url_list():
     """
-    Returns configured API URLs. If none are provided, returns an empty list
-    so that Streamlit Community Cloud immediately executes in-process models
-    without hanging or timing out on localhost.
+    Returns configured API URLs in order of priority:
+    1. Streamlit Secrets (API_BASE_URL, API_URL, BACKEND_URL)
+    2. Environment Variables (API_BASE_URL, API_URL, BACKEND_URL)
+    3. Local development fallback (localhost:8000) only if running locally and port is active.
     """
     urls = []
+
     # 1. Check Streamlit Cloud secrets
     try:
-        if hasattr(st, "secrets") and "API_URL" in st.secrets:
-            val = str(st.secrets["API_URL"]).strip().rstrip("/")
-            if val and val not in urls:
-                urls.append(val)
+        if hasattr(st, "secrets"):
+            for key in ("API_BASE_URL", "API_URL", "BACKEND_URL"):
+                if key in st.secrets:
+                    val = str(st.secrets[key]).strip().rstrip("/")
+                    if val and val not in urls:
+                        urls.append(val)
     except Exception:
         pass
 
-    # 2. Check Environment Variable
-    env_api = os.getenv("API_URL", "").strip().rstrip("/")
-    if env_api and env_api not in urls:
-        urls.append(env_api)
+    # 2. Check Environment Variables
+    for env_key in ("API_BASE_URL", "API_URL", "BACKEND_URL"):
+        env_val = os.getenv(env_key, "").strip().rstrip("/")
+        if env_val and env_val not in urls:
+            urls.append(env_val)
+
+    # 3. Local Development Fallback: if no cloud URL is set, check if local port 8000 is running
+    if not urls:
+        # Check if running locally (not inside Streamlit Cloud container)
+        is_cloud = os.getenv("STREAMLIT_SERVER_GATHER_USAGE_STATS") == "false" and os.path.exists("/app")
+        if not is_cloud:
+            if _is_port_open("127.0.0.1", 8000):
+                urls.append("http://127.0.0.1:8000")
 
     return urls
 
-# Public alias for views
+# Public aliases for views
 get_api_urls = _get_url_list
 
 
-def _make_post_request(endpoint_path, payload, timeout=2.5):
-    """Helper to try API URLs with quick failover."""
-    url_list = _get_url_list()
-    if not url_list:
-        return None
-    for url_base in url_list:
+def get_primary_api_url():
+    """Returns the primary configured backend URL or None."""
+    urls = _get_url_list()
+    return urls[0] if urls else None
+
+
+@st.cache_data(ttl=20)
+def is_backend_available():
+    """Checks if any configured backend is responsive via /health probe."""
+    urls = _get_url_list()
+    if not urls:
+        return False
+    for base in urls:
         try:
-            response = requests.post(f"{url_base}{endpoint_path}", json=payload, timeout=timeout)
-            if response.status_code == 200:
-                return response.json()
+            r = requests.get(f"{base}/health", timeout=1.5)
+            if r.status_code == 200:
+                return True
         except Exception:
             continue
-    return None
+    return False
 
 
-def _make_get_request(endpoint_path, timeout=2.5):
-    """Helper to try API URLs with quick failover."""
-    url_list = _get_url_list()
-    if not url_list:
-        return None
-    for url_base in url_list:
+def render_backend_status_pill():
+    """Renders a status badge indicating whether FastAPI is connected or running in-process."""
+    primary = get_primary_api_url()
+    if primary:
+        if is_backend_available():
+            st.sidebar.success(f"🟢 **FastAPI Backend Connected**\n`{primary}`")
+        else:
+            st.sidebar.warning(f"🟡 **Backend Offline / Waking Up**\n`{primary}` (Using in-process fallback)")
+    else:
+        st.sidebar.info("⚡ **In-Process Engine Active**\n*(To connect dedicated backend, set `API_BASE_URL` in Secrets)*")
+
+
+def api_get(endpoint_path, timeout=3.5):
+    """
+    Standard GET request across configured backend URLs with quick failover.
+    Returns JSON dict on success or None.
+    """
+    for url_base in _get_url_list():
         try:
             response = requests.get(f"{url_base}{endpoint_path}", timeout=timeout)
             if response.status_code == 200:
@@ -61,6 +103,28 @@ def _make_get_request(endpoint_path, timeout=2.5):
         except Exception:
             continue
     return None
+
+
+def api_post(endpoint_path, payload=None, files=None, timeout=5.0):
+    """
+    Standard POST request across configured backend URLs with quick failover.
+    Returns JSON dict on success or None.
+    """
+    for url_base in _get_url_list():
+        try:
+            if files:
+                response = requests.post(f"{url_base}{endpoint_path}", data=payload, files=files, timeout=timeout)
+            else:
+                response = requests.post(f"{url_base}{endpoint_path}", json=payload, timeout=timeout)
+            if response.status_code == 200:
+                return response.json()
+        except Exception:
+            continue
+    return None
+
+# Backward compatibility alias
+_make_get_request = api_get
+_make_post_request = lambda path, payload, timeout=2.5: api_post(path, payload=payload, timeout=timeout)
 
 
 # ============================================================
@@ -71,16 +135,10 @@ def classify_image_api(image_bytes, filename="issue.jpg"):
     """
     Classify an uploaded civic issue photo via FastAPI or direct local DL model fallback.
     """
-    for url_base in _get_url_list():
-        try:
-            files = {"file": (filename, image_bytes, "image/jpeg")}
-            response = requests.post(f"{url_base}/predict/image", files=files, timeout=6)
-            if response.status_code == 200:
-                data = response.json()
-                if "error" not in data:
-                    return data
-        except Exception:
-            continue
+    files = {"file": (filename, image_bytes, "image/jpeg")}
+    api_res = api_post("/predict/image", files=files, timeout=8.0)
+    if api_res and "error" not in api_res:
+        return api_res
 
     # Direct local DL execution fallback if API is unreachable
     try:
@@ -101,7 +159,7 @@ def query_rag_api(query, top_k=3):
     Queries the Civic RAG Knowledge Base via FastAPI or direct local fallback.
     """
     payload = {"query": query, "top_k": top_k}
-    api_res = _make_post_request("/rag/query", payload, timeout=4)
+    api_res = api_post("/rag/query", payload=payload, timeout=4.0)
     if api_res and "error" not in api_res:
         return api_res
 
@@ -136,7 +194,7 @@ def submit_complaint(text, state="Karnataka", district="Bengaluru Urban", image_
         "district": district
     }
 
-    api_res = _make_post_request("/predict", payload, timeout=3)
+    api_res = api_post("/predict", payload=payload, timeout=4.0)
     if api_res and "error" not in api_res:
         if image_meta:
             api_res["image_meta"] = image_meta
@@ -202,7 +260,7 @@ def track_complaint(complaint_number):
     """
     Retrieve complaint information using Complaint ID.
     """
-    api_res = _make_get_request(f"/track/{complaint_number}", timeout=3)
+    api_res = api_get(f"/track/{complaint_number}", timeout=3.0)
     if api_res and "error" not in api_res:
         return api_res
 
@@ -243,7 +301,7 @@ def update_complaint_status(complaint_number, status, assigned_officer=None, off
         "priority": priority
     }
 
-    api_res = _make_post_request("/government/update-status", payload, timeout=3)
+    api_res = api_post("/government/update-status", payload=payload, timeout=4.0)
     if api_res and "error" not in api_res:
         return api_res
 
@@ -266,4 +324,4 @@ def update_complaint_status(complaint_number, status, assigned_officer=None, off
             }
         return {"error": "Failed to update complaint status."}
     except Exception as e:
-        return {"error": f"Unable to update status: {e}"}
+        return {"error": f"Unable to update status: {e}"}

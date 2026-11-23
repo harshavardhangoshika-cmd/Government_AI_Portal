@@ -24,6 +24,11 @@ from official_views import trend
 from official_views import anomaly
 from official_views import social_media
 
+try:
+    from app.frontend.utils.api import render_backend_status_pill
+except ImportError:
+    from utils.api import render_backend_status_pill
+
 
 # ============================================================
 # GOVERNMENT OFFICIAL PORTAL
@@ -176,10 +181,11 @@ def show_official_portal():
         )
 
     # ========================================================
-    # LOGOUT
+    # BACKEND STATUS & LOGOUT
     # ========================================================
 
     st.sidebar.divider()
+    render_backend_status_pill()
 
     if st.sidebar.button(
         "🚪 Logout",

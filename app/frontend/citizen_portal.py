@@ -73,9 +73,9 @@ def get_supabase():
 
     try:
 
-        from app.database.database import supabase
+        from app.database.database import get_client
 
-        return supabase
+        return get_client()
 
     except Exception as e:
 

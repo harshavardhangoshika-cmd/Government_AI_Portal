@@ -6,23 +6,13 @@ import plotly.express as px
 
 
 # ============================================================
-# FASTAPI BACKEND
+# FASTAPI BACKEND & DATA FETCHING
 # ============================================================
 
 try:
-    from app.frontend.utils.api import get_api_urls
+    from app.frontend.utils.api import api_get
 except ImportError:
-    from utils.api import get_api_urls
-
-def _fetch_api(path, timeout=2):
-    for base in get_api_urls():
-        try:
-            res = requests.get(f"{base}{path}", timeout=timeout)
-            if res.status_code == 200:
-                return res.json()
-        except Exception:
-            continue
-    return None
+    from utils.api import api_get
 
 # ============================================================
 # DEPARTMENT TRENDS DATA
@@ -31,7 +21,7 @@ def _fetch_api(path, timeout=2):
 @st.cache_data(ttl=30)
 def get_department_trends():
     """Fetch complaint trends aggregated by department."""
-    res = _fetch_api("/government/department-trends", timeout=2)
+    res = api_get("/government/department-trends", timeout=3)
     if res and "data" in res and res["data"]:
         return res["data"]
 
@@ -60,7 +50,7 @@ def get_department_trends():
 
 @st.cache_data(ttl=30)
 def get_current_trend():
-    res = _fetch_api("/government/trends", timeout=2)
+    res = api_get("/government/trends", timeout=3)
     if res and "data" in res and res["data"]:
         return res["data"]
 
@@ -82,8 +72,8 @@ def get_current_trend():
 
 @st.cache_data(ttl=30)
 def get_forecast_demo():
-    res = _fetch_api("/government/forecast-demo", timeout=2)
-    if res:
+    res = api_get("/government/forecast-demo", timeout=3)
+    if res and isinstance(res, dict) and "historical" in res:
         return res
 
     # Direct local fallback
@@ -496,6 +486,8 @@ def show():
 
 
     if demo is None:
+
+        st.info("ℹ️ Historical forecasting benchmark dataset is currently unavailable.")
 
         return
 
